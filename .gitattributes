@@ -1,0 +1,10 @@
+* text=auto
+
+*.bat text eol=crlf
+*.jar binary
+*.onnx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.wav binary

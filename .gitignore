@@ -1,0 +1,50 @@
+# macOS / editors
+.DS_Store
+.idea/
+*.iml
+
+# Local agent/editor state
+.claude/
+
+# Gradle / Android local state
+.gradle/
+**/build/
+local.properties
+*.apk
+*.aab
+*.ap_
+
+# Signing keys and certificates
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+*.mobileprovision
+
+# Environment files and private credentials
+.env
+.env.*
+*.env
+secrets.*
+credentials.*
+google-services.json
+firebase*.json
+
+# Runtime captures, logs, and private audio
+tmp/
+temp/
+logs/
+*.log
+recordings/
+captures/
+docs/product/core/screenshots/
+*.m4a
+*.mp3
+*.aac
+*.flac
+*.opus
+*.wav
+
+# The bundled ASR connectivity sample is documented as CC0.
+!app-android/app/src/main/assets/asr_test_zh.wav
