@@ -40,6 +40,31 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "build-tools;36.1.0"
 
+      - name: Convert app source text to Taiwan Traditional Chinese
+        run: |
+          python3 -m pip install --quiet opencc-python-reimplemented
+          python3 - <<'PY'
+          from pathlib import Path
+          from opencc import OpenCC
+
+          cc = OpenCC('s2twp')
+          roots = [
+              Path('app-android/app/src/main/java'),
+              Path('app-android/app/src/main/res'),
+          ]
+          changed = 0
+          for root in roots:
+              for p in root.rglob('*'):
+                  if p.suffix not in {'.kt', '.java', '.xml'} or not p.is_file():
+                      continue
+                  text = p.read_text(encoding='utf-8')
+                  converted = cc.convert(text)
+                  if converted != text:
+                      p.write_text(converted, encoding='utf-8')
+                      changed += 1
+          print(f'Traditionalized {changed} source files')
+          PY
+
       - name: Bundle offline Chinese Vosk model
         run: |
           mkdir -p app-android/app/src/main/assets
@@ -58,7 +83,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: echo-local-asr-debug-apk
+          name: echo-samsung-asr-traditional-debug-apk
           path: app-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
