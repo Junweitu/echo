@@ -3,6 +3,7 @@ package tech.echo.app.core.upload
 import android.util.Log
 import tech.echo.app.core.data.db.SegmentStatus
 import tech.echo.app.core.data.repository.SegmentRepository
+import tech.echo.app.core.text.TraditionalChinese
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -12,6 +13,7 @@ import javax.inject.Singleton
 class UploadProcessor @Inject constructor(
     private val segmentRepository: SegmentRepository,
     private val asrClient: AsrClient,
+    private val diagnosticsStore: AsrDiagnosticsStore,
 ) {
     suspend fun processPending(limit: Int = DEFAULT_LIMIT): UploadBatchResult {
         val pending = segmentRepository.findPendingUpload(limit)
@@ -19,18 +21,24 @@ class UploadProcessor @Inject constructor(
         var failed = 0
 
         pending.forEach { segment ->
+            val audioFile = File(segment.audioPath)
             runCatching {
                 segmentRepository.updateStatus(segment.id, SegmentStatus.UPLOADING.name)
-                val utterances = asrClient.transcribe(File(segment.audioPath))
-                if (utterances.isEmpty()) throw IOException("ASR 返回空转写")
+                val utterances = asrClient.transcribe(audioFile)
+                if (utterances.isEmpty()) throw IOException("ASR 回傳空白轉寫")
+                val diagnostic = diagnosticsStore.consume(audioFile.absolutePath)
                 segmentRepository.markTranscribed(
                     id = segment.id,
-                    text = TranscriptionFormatter.combineText(utterances),
+                    text = TraditionalChinese.convert(TranscriptionFormatter.combineText(utterances)),
                     speakerLabel = TranscriptionFormatter.primarySpeakerLabel(utterances),
+                    asrEngine = diagnostic?.engine,
+                    asrElapsedMs = diagnostic?.elapsedMs,
+                    asrFallbackReason = diagnostic?.fallbackReason?.let(TraditionalChinese::convert),
                 )
                 completed += 1
             }.onFailure {
-                Log.w(TAG, "upload segment failed id=${segment.id} status=${it.javaClass.simpleName}: ${it.message}", it)
+                diagnosticsStore.consume(audioFile.absolutePath)
+                Log.w(TAG, "ASR segment failed id=${segment.id} status=${it.javaClass.simpleName}: ${it.message}", it)
                 segmentRepository.updateStatus(segment.id, SegmentStatus.FAILED.name)
                 failed += 1
             }
