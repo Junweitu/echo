@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -27,36 +28,61 @@ import javax.inject.Singleton
 import kotlin.coroutines.resumeWithException
 
 /**
- * Production ASR for the user's Samsung device.
- *
- * Priority:
- * 1) Explicit Samsung/Bixby RecognitionService using Android 12 WAV injection.
- * 2) Fully offline Vosk Chinese fallback if Samsung is unavailable or fails.
- *
- * The Samsung path does not require an API key. It may still use Samsung/network
- * services because this device reports Android on-device recognition unavailable.
+ * 正式 ASR：Samsung/Bixby 優先，失敗時自動改用完全離線的 Vosk 中文模型。
  */
 @Singleton
 class SamsungPreferredAsrClient @Inject constructor(
     @ApplicationContext private val context: Context,
     private val localFallback: LocalVoskAsrClient,
+    private val diagnosticsStore: AsrDiagnosticsStore,
 ) : AsrClient {
 
     private val mutex = Mutex()
 
     override suspend fun transcribe(audioFile: File): List<AsrUtterance> {
-        require(audioFile.exists()) { "录音文件不存在：${audioFile.absolutePath}" }
+        require(audioFile.exists()) { "錄音檔不存在：${audioFile.absolutePath}" }
+        val started = SystemClock.elapsedRealtime()
 
         if (!canUseSamsungInjection()) {
-            return localFallback.transcribe(audioFile)
+            val result = localFallback.transcribe(audioFile)
+            diagnosticsStore.record(
+                audioFile.absolutePath,
+                AsrDiagnostic(
+                    engine = ENGINE_VOSK,
+                    elapsedMs = SystemClock.elapsedRealtime() - started,
+                    fallbackReason = "Samsung RecognitionService 不可用",
+                )
+            )
+            return result
         }
 
         return mutex.withLock {
             runCatching { transcribeWithSamsung(audioFile) }
-                .onFailure {
-                    Log.w(TAG, "Samsung ASR failed; falling back to Vosk: ${it.message}", it)
-                }
-                .getOrElse { localFallback.transcribe(audioFile) }
+                .fold(
+                    onSuccess = { result ->
+                        diagnosticsStore.record(
+                            audioFile.absolutePath,
+                            AsrDiagnostic(
+                                engine = ENGINE_SAMSUNG,
+                                elapsedMs = SystemClock.elapsedRealtime() - started,
+                            )
+                        )
+                        result
+                    },
+                    onFailure = { samsungError ->
+                        Log.w(TAG, "Samsung ASR failed; falling back to Vosk: ${samsungError.message}", samsungError)
+                        val result = localFallback.transcribe(audioFile)
+                        diagnosticsStore.record(
+                            audioFile.absolutePath,
+                            AsrDiagnostic(
+                                engine = ENGINE_VOSK,
+                                elapsedMs = SystemClock.elapsedRealtime() - started,
+                                fallbackReason = samsungError.message ?: samsungError.javaClass.simpleName,
+                            )
+                        )
+                        result
+                    },
+                )
         }
     }
 
@@ -95,7 +121,7 @@ class SamsungPreferredAsrClient @Inject constructor(
             }
         }.trim()
 
-        if (text.isBlank()) throw IllegalStateException("Samsung ASR 未返回文字")
+        if (text.isBlank()) throw IllegalStateException("Samsung ASR 未回傳文字")
         return listOf(
             AsrUtterance(
                 speakerLabel = null,
@@ -142,7 +168,7 @@ class SamsungPreferredAsrClient @Inject constructor(
                         .orEmpty()
                         .filter { it.isNotBlank() }
                     if (texts.isEmpty()) {
-                        finish(Result.failure(IllegalStateException("Samsung ASR 没有返回识别文字")))
+                        finish(Result.failure(IllegalStateException("Samsung ASR 沒有回傳辨識文字")))
                     } else {
                         finish(Result.success(texts.first()))
                     }
@@ -199,6 +225,8 @@ class SamsungPreferredAsrClient @Inject constructor(
 
     companion object {
         private const val TAG = "EchoSamsungAsr"
+        const val ENGINE_SAMSUNG = "Samsung/Bixby"
+        const val ENGINE_VOSK = "Vosk（備援）"
         private const val SAMSUNG_PACKAGE = "com.samsung.android.bixby.agent"
         private val SAMSUNG_COMPONENT = ComponentName(
             SAMSUNG_PACKAGE,
