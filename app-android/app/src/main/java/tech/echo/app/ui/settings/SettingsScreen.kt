@@ -46,6 +46,7 @@ fun SettingsScreen(
     val form by viewModel.form.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
     val asrTest by viewModel.asrTest.collectAsStateWithLifecycle()
+    val systemSpeechTest by viewModel.systemSpeechTest.collectAsStateWithLifecycle()
     val llmTest by viewModel.llmTest.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -73,14 +74,26 @@ fun SettingsScreen(
                 .padding(horizontal = EchoSpacing.pageHorizontal),
             verticalArrangement = Arrangement.spacedBy(EchoSpacing.elementGap),
         ) {
-            SectionTitle("本机语音识别")
+            SectionTitle("Samsung / 系统语音识别诊断")
             Text(
-                "Vosk 小型中文模型，完全在手机上转写；不需要火山引擎，也不按录音时数收费。第一次测试需要先解压模型。",
+                "先确认 Note10+ 是否向第三方 App 暴露系统或装置端语音辨识，并测试 Android 12 能否把 Echo 的 WAV 片段直接交给该辨识器。测试前请先暂停 Echo 录音并保持安静；若系统不支持 WAV 注入，辨识器可能尝试打开麦克风。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ConnectionTestButton(
-                text = "测试本机中文语音识别",
+                text = "测试 Samsung / 系统 ASR",
+                state = systemSpeechTest,
+                onClick = viewModel::testSystemSpeech,
+            )
+
+            SectionTitle("本机语音识别（备用）")
+            Text(
+                "Vosk 小型中文模型，完全在手机上转写；不需要火山引擎，也不按录音时数收费。若 Samsung / 系统 ASR 可稳定接收 Echo 的 WAV，我们之后可以改用系统辨识并移除 Vosk。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ConnectionTestButton(
+                text = "测试 Vosk 本机中文语音识别",
                 state = asrTest,
                 onClick = viewModel::testAsr,
             )
@@ -116,7 +129,7 @@ fun SettingsScreen(
             }
 
             Text(
-                "本机 ASR 不上传录音；每日整理仍会把转写文字发送给你配置的 DeepSeek 服务。",
+                "目前 Echo 正式转写仍使用 Vosk；Samsung / 系统 ASR 这里只做诊断，不会改动既有录音或逐字稿。每日整理仍会把转写文字发送给你配置的 DeepSeek 服务。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = EchoSpacing.sectionGap),
