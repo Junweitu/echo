@@ -6,7 +6,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.echo.app.core.summary.LlmClient
 import tech.echo.app.core.upload.AsrClient
-import tech.echo.app.core.upload.AsrStatusException
 import java.io.File
 import javax.inject.Inject
 
@@ -38,14 +37,14 @@ class SettingsConnectionTester internal constructor(
                 file.delete()
             }
         }.fold(
-            onSuccess = { ConnectionTestResult(true, "豆包语音连接正常") },
-            onFailure = {
-                if (it is AsrStatusException && it.statusCode == SILENT_AUDIO_STATUS) {
-                    ConnectionTestResult(true, "豆包语音连接正常（测试音频无语音）")
+            onSuccess = { utterances ->
+                if (utterances.isNotEmpty()) {
+                    ConnectionTestResult(true, "本机中文语音识别正常：${utterances.first().text.take(24)}")
                 } else {
-                    ConnectionTestResult(false, it.readableMessage("豆包语音连接失败"))
+                    ConnectionTestResult(true, "本机中文语音模型已加载（测试音频未识别到文字）")
                 }
             },
+            onFailure = { ConnectionTestResult(false, it.readableMessage("本机语音识别失败")) },
         )
     }
 
@@ -60,5 +59,3 @@ class SettingsConnectionTester internal constructor(
     private fun Throwable.readableMessage(prefix: String): String =
         "$prefix：${message ?: javaClass.simpleName}"
 }
-
-private const val SILENT_AUDIO_STATUS = "20000003"
