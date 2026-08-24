@@ -28,12 +28,12 @@ import javax.inject.Singleton
 import kotlin.coroutines.resumeWithException
 
 /**
- * 正式 ASR：Samsung/Bixby 優先，失敗時自動改用完全離線的 Vosk 中文模型。
+ * 正式 ASR：Samsung/Bixby 優先，必要時以 Vosk 本機辨識備援。
  *
- * 注意：不再先用 PackageManager.resolveService() 判斷 Samsung 是否可用。
- * Note10+ 實測顯示 Samsung 的 RecognitionServiceTrampoline 可以被
- * SpeechRecognizer 直接建立並成功接受 WAV 注入，但 resolveService() 可能回傳 null。
- * 因此 Android 12+ 會直接嘗試 Samsung；真正失敗時再依實際錯誤改走 Vosk。
+ * Note10+ 實測顯示：短 WAV 可由 Samsung/Bixby RecognitionService 正常辨識，
+ * 但約 60 秒 WAV 可能長時間不回傳。因此保留原始錄音檔不變，只在 ASR 階段
+ * 暫時切成約 16 秒的小 WAV，依序送 Samsung；某一小段失敗後，該段與後續
+ * 小段直接改用 Vosk，避免每一段都等待 Samsung timeout。
  */
 @Singleton
 class SamsungPreferredAsrClient @Inject constructor(
@@ -49,7 +49,7 @@ class SamsungPreferredAsrClient @Inject constructor(
         val started = SystemClock.elapsedRealtime()
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            return transcribeWithFallback(
+            return transcribeWholeFileWithVosk(
                 audioFile = audioFile,
                 started = started,
                 fallbackReason = "Android 12 以下不支援 WAV 注入",
@@ -57,53 +57,108 @@ class SamsungPreferredAsrClient @Inject constructor(
         }
 
         return mutex.withLock {
-            runCatching { transcribeWithSamsung(audioFile) }
+            runCatching { transcribeChunked(audioFile) }
                 .fold(
-                    onSuccess = { result ->
+                    onSuccess = { outcome ->
                         diagnosticsStore.record(
                             audioFile.absolutePath,
                             AsrDiagnostic(
-                                engine = ENGINE_SAMSUNG,
+                                engine = outcome.engine,
                                 elapsedMs = SystemClock.elapsedRealtime() - started,
+                                fallbackReason = outcome.fallbackReason,
                             )
                         )
-                        result
+                        outcome.utterances
                     },
-                    onFailure = { samsungError ->
-                        Log.w(
-                            TAG,
-                            "Samsung ASR failed; falling back to Vosk: ${samsungError.message}",
-                            samsungError,
-                        )
-                        transcribeWithFallback(
+                    onFailure = { error ->
+                        Log.w(TAG, "Chunked Samsung ASR failed; using Vosk for whole file: ${error.message}", error)
+                        transcribeWholeFileWithVosk(
                             audioFile = audioFile,
                             started = started,
-                            fallbackReason = samsungError.message ?: samsungError.javaClass.simpleName,
+                            fallbackReason = error.message ?: error.javaClass.simpleName,
                         )
                     },
                 )
         }
     }
 
-    private suspend fun transcribeWithFallback(
-        audioFile: File,
-        started: Long,
-        fallbackReason: String,
-    ): List<AsrUtterance> {
-        val result = localFallback.transcribe(audioFile)
-        diagnosticsStore.record(
-            audioFile.absolutePath,
-            AsrDiagnostic(
-                engine = ENGINE_VOSK,
-                elapsedMs = SystemClock.elapsedRealtime() - started,
-                fallbackReason = fallbackReason,
+    private suspend fun transcribeChunked(audioFile: File): ChunkedOutcome {
+        val chunkDir = File(context.cacheDir, CHUNK_DIR)
+        val chunks = withContext(Dispatchers.IO) {
+            WavChunker.split(
+                source = audioFile,
+                targetDir = chunkDir,
+                chunkMs = SAMSUNG_CHUNK_MS,
+                overlapMs = CHUNK_OVERLAP_MS,
             )
+        }
+
+        val texts = mutableListOf<String>()
+        val fallbackReasons = mutableListOf<String>()
+        var samsungAllowed = true
+        var samsungCount = 0
+        var voskCount = 0
+
+        try {
+            chunks.forEachIndexed { index, chunk ->
+                val text = if (samsungAllowed) {
+                    runCatching { transcribeOneWithSamsung(chunk.file) }
+                        .fold(
+                            onSuccess = {
+                                samsungCount += 1
+                                it
+                            },
+                            onFailure = { samsungError ->
+                                // 一旦同一個原始片段中的 Samsung 呼叫失敗，後續 chunk
+                                // 不再重複等待 timeout；直接用本機 Vosk 完成。
+                                samsungAllowed = false
+                                val reason = "第 ${index + 1}/${chunks.size} 段：${samsungError.message ?: samsungError.javaClass.simpleName}"
+                                fallbackReasons += reason
+                                Log.w(TAG, "Samsung chunk failed; switching remaining chunks to Vosk: $reason", samsungError)
+                                voskCount += 1
+                                transcribeOneWithVosk(chunk.file)
+                            },
+                        )
+                } else {
+                    voskCount += 1
+                    transcribeOneWithVosk(chunk.file)
+                }
+
+                if (text.isNotBlank()) texts += text.trim()
+            }
+        } finally {
+            withContext(Dispatchers.IO) {
+                chunks.filter { it.temporary }.forEach { runCatching { it.file.delete() } }
+                runCatching { chunkDir.delete() }
+            }
+        }
+
+        check(texts.isNotEmpty()) { "Samsung/Vosk 都沒有回傳辨識文字" }
+        val merged = mergeChunkTexts(texts)
+        check(merged.isNotBlank()) { "合併後的辨識文字為空" }
+
+        val engine = when {
+            voskCount == 0 -> ENGINE_SAMSUNG
+            samsungCount == 0 -> ENGINE_VOSK
+            else -> ENGINE_MIXED
+        }
+
+        return ChunkedOutcome(
+            utterances = listOf(
+                AsrUtterance(
+                    speakerLabel = null,
+                    text = merged,
+                    startMs = 0L,
+                    endMs = wavDurationMs(audioFile),
+                )
+            ),
+            engine = engine,
+            fallbackReason = fallbackReasons.takeIf { it.isNotEmpty() }?.joinToString("；"),
         )
-        return result
     }
 
-    private suspend fun transcribeWithSamsung(audioFile: File): List<AsrUtterance> {
-        val text = withTimeout(timeoutFor(audioFile)) {
+    private suspend fun transcribeOneWithSamsung(audioFile: File): String {
+        val text = withTimeout(timeoutForChunk(audioFile)) {
             withContext(Dispatchers.Main.immediate) {
                 val uri = FileProvider.getUriForFile(
                     context,
@@ -129,15 +184,72 @@ class SamsungPreferredAsrClient @Inject constructor(
             }
         }.trim()
 
-        if (text.isBlank()) throw IllegalStateException("Samsung ASR 未回傳文字")
-        return listOf(
-            AsrUtterance(
-                speakerLabel = null,
-                text = text,
-                startMs = 0L,
-                endMs = wavDurationMs(audioFile),
+        check(text.isNotBlank()) { "Samsung ASR 未回傳文字" }
+        return text
+    }
+
+    private suspend fun transcribeOneWithVosk(audioFile: File): String {
+        val utterances = localFallback.transcribe(audioFile)
+        val text = TranscriptionFormatter.combineText(utterances).trim()
+        check(text.isNotBlank()) { "Vosk 未回傳文字" }
+        return text
+    }
+
+    private suspend fun transcribeWholeFileWithVosk(
+        audioFile: File,
+        started: Long,
+        fallbackReason: String,
+    ): List<AsrUtterance> {
+        val result = localFallback.transcribe(audioFile)
+        diagnosticsStore.record(
+            audioFile.absolutePath,
+            AsrDiagnostic(
+                engine = ENGINE_VOSK,
+                elapsedMs = SystemClock.elapsedRealtime() - started,
+                fallbackReason = fallbackReason,
             )
         )
+        return result
+    }
+
+    /**
+     * chunk 之間保留 400ms 重疊，避免剛好切在中文字/詞中間。
+     * 若兩段 ASR 真的重複回傳相同尾首文字，移除最長的相同前後綴。
+     */
+    private fun mergeChunkTexts(parts: List<String>): String {
+        var merged = ""
+        parts.filter { it.isNotBlank() }.forEach { raw ->
+            val next = raw.trim()
+            if (merged.isBlank()) {
+                merged = next
+                return@forEach
+            }
+
+            val maxOverlap = minOf(MAX_TEXT_OVERLAP_CHARS, merged.length, next.length)
+            var overlap = 0
+            for (length in maxOverlap downTo MIN_TEXT_OVERLAP_CHARS) {
+                if (merged.regionMatches(
+                        thisOffset = merged.length - length,
+                        other = next,
+                        otherOffset = 0,
+                        length = length,
+                        ignoreCase = false,
+                    )
+                ) {
+                    overlap = length
+                    break
+                }
+            }
+
+            val remainder = next.drop(overlap)
+            if (remainder.isEmpty()) return@forEach
+
+            val needsAsciiSpace = merged.lastOrNull()?.isLetterOrDigit() == true &&
+                remainder.firstOrNull()?.isLetterOrDigit() == true &&
+                merged.last().code < 128 && remainder.first().code < 128
+            merged += if (needsAsciiSpace) " $remainder" else remainder
+        }
+        return merged.trim()
     }
 
     private suspend fun recognizeOnMainThread(uri: Uri): String =
@@ -212,8 +324,9 @@ class SamsungPreferredAsrClient @Inject constructor(
                 .onFailure { finish(Result.failure(it)) }
         }
 
-    private fun timeoutFor(file: File): Long =
-        (wavDurationMs(file) + EXTRA_TIMEOUT_MS).coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
+    private fun timeoutForChunk(file: File): Long =
+        (wavDurationMs(file) + CHUNK_EXTRA_TIMEOUT_MS)
+            .coerceIn(CHUNK_MIN_TIMEOUT_MS, CHUNK_MAX_TIMEOUT_MS)
 
     private fun wavDurationMs(file: File): Long {
         val pcmBytes = (file.length() - WavWriter.WAV_HEADER_SIZE).coerceAtLeast(0L)
@@ -235,17 +348,31 @@ class SamsungPreferredAsrClient @Inject constructor(
         else -> "UNKNOWN"
     }
 
+    private data class ChunkedOutcome(
+        val utterances: List<AsrUtterance>,
+        val engine: String,
+        val fallbackReason: String?,
+    )
+
     companion object {
         private const val TAG = "EchoSamsungAsr"
         const val ENGINE_SAMSUNG = "Samsung/Bixby"
         const val ENGINE_VOSK = "Vosk（備援）"
+        const val ENGINE_MIXED = "Samsung/Bixby + Vosk（局部備援）"
+
         private const val SAMSUNG_PACKAGE = "com.samsung.android.bixby.agent"
         private val SAMSUNG_COMPONENT = ComponentName(
             SAMSUNG_PACKAGE,
             "com.samsung.android.bixby.agent.RecognitionServiceTrampoline",
         )
-        private const val EXTRA_TIMEOUT_MS = 20_000L
-        private const val MIN_TIMEOUT_MS = 25_000L
-        private const val MAX_TIMEOUT_MS = 90_000L
+
+        private const val CHUNK_DIR = "samsung-asr-chunks"
+        private const val SAMSUNG_CHUNK_MS = 16_000L
+        private const val CHUNK_OVERLAP_MS = 400L
+        private const val CHUNK_EXTRA_TIMEOUT_MS = 14_000L
+        private const val CHUNK_MIN_TIMEOUT_MS = 20_000L
+        private const val CHUNK_MAX_TIMEOUT_MS = 32_000L
+        private const val MAX_TEXT_OVERLAP_CHARS = 16
+        private const val MIN_TEXT_OVERLAP_CHARS = 2
     }
 }
