@@ -10,5 +10,5 @@ import dagger.hilt.components.SingletonComponent
 abstract class UploadModule {
 
     @Binds
-    abstract fun bindAsrClient(client: LocalVoskAsrClient): AsrClient
+    abstract fun bindAsrClient(client: SamsungPreferredAsrClient): AsrClient
 }
