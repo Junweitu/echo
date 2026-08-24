@@ -3,6 +3,9 @@
     <cache-path
         name="speech_diag_cache"
         path="connection-test/" />
+    <cache-path
+        name="samsung_asr_chunks"
+        path="samsung-asr-chunks/" />
     <files-path
         name="echo_audio_segments"
         path="audio/" />
