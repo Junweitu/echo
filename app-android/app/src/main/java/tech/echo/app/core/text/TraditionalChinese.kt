@@ -12,8 +12,12 @@ object TraditionalChinese {
             .getOrElse { Transliterator.getInstance("Hans-Hant") }
     }
 
-    fun convert(text: String): String =
-        if (text.isBlank()) text else runCatching { converter.transliterate(text) }.getOrDefault(text)
+    fun convert(text: String): String {
+        if (text.isBlank()) return text
+        return synchronized(converter) {
+            runCatching { converter.transliterate(text) }.getOrDefault(text)
+        }
+    }
 
     fun convert(items: List<String>): List<String> = items.map(::convert)
 }
