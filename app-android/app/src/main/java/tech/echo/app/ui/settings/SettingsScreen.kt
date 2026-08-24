@@ -74,9 +74,16 @@ fun SettingsScreen(
                 .padding(horizontal = EchoSpacing.pageHorizontal),
             verticalArrangement = Arrangement.spacedBy(EchoSpacing.elementGap),
         ) {
+            SectionTitle("正式语音识别")
+            Text(
+                "Echo 现在优先使用 Samsung / Bixby 系统语音识别处理 WAV 片段；若 Samsung 服务不可用、无网络或识别失败，会自动改用 Vosk 本机中文模型，不需要火山引擎 API Key。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             SectionTitle("Samsung / 系统语音识别诊断")
             Text(
-                "先确认 Note10+ 是否向第三方 App 暴露系统或装置端语音辨识，并测试 Android 12 能否把 Echo 的 WAV 片段直接交给该辨识器。测试前请先暂停 Echo 录音并保持安静；若系统不支持 WAV 注入，辨识器可能尝试打开麦克风。",
+                "用于检查系统、Google 与 Samsung/Bixby RecognitionService 是否能直接接收 Echo 的 WAV。诊断本身不会改动既有录音或逐字稿。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -86,9 +93,9 @@ fun SettingsScreen(
                 onClick = viewModel::testSystemSpeech,
             )
 
-            SectionTitle("本机语音识别（备用）")
+            SectionTitle("Vosk 本机语音识别（自动备用）")
             Text(
-                "Vosk 小型中文模型，完全在手机上转写；不需要火山引擎，也不按录音时数收费。若 Samsung / 系统 ASR 可稳定接收 Echo 的 WAV，我们之后可以改用系统辨识并移除 Vosk。",
+                "Vosk 小型中文模型完全在手机上转写，不需要网络，也不按录音时数收费。这个按钮只测试 Vosk 备用引擎。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -129,7 +136,7 @@ fun SettingsScreen(
             }
 
             Text(
-                "目前 Echo 正式转写仍使用 Vosk；Samsung / 系统 ASR 这里只做诊断，不会改动既有录音或逐字稿。每日整理仍会把转写文字发送给你配置的 DeepSeek 服务。",
+                "注意：这台手机回报 Android『装置端语音识别』不可用，因此 Samsung/Bixby 路径不保证完全离线；若 Samsung 失败，Vosk 备用路径则完全离线。每日整理仍会把转写文字发送给你配置的 DeepSeek 服务。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = EchoSpacing.sectionGap),
