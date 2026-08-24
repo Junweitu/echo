@@ -11,7 +11,6 @@ import tech.echo.app.core.settings.AppConfig
 import tech.echo.app.core.settings.SettingsRepository
 import javax.inject.Inject
 
-/** 设置页 ViewModel：本机 ASR 无需密钥；这里只保存 DeepSeek 等可编辑配置。 */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
@@ -48,7 +47,7 @@ class SettingsViewModel @Inject constructor(
 
     fun testAsr() {
         viewModelScope.launch {
-            _asrTest.value = ConnectionTestUiState(testing = true, message = "正在加载本机中文语音模型…")
+            _asrTest.value = ConnectionTestUiState(testing = true, message = "正在載入本機中文語音模型…")
             _asrTest.value = connectionTester.testAsr().toUiState()
         }
     }
@@ -57,7 +56,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _systemSpeechTest.value = ConnectionTestUiState(
                 testing = true,
-                message = "正在检查 Samsung / Android 系统语音识别，并测试 WAV 注入…",
+                message = "正在檢查 Samsung / Android 系統語音辨識，並測試 WAV 注入…",
             )
             _systemSpeechTest.value = systemSpeechDiagnostic.run().toUiState()
         }
@@ -66,7 +65,7 @@ class SettingsViewModel @Inject constructor(
     fun testLlm() {
         viewModelScope.launch {
             saveCurrentFormForTest()
-            _llmTest.value = ConnectionTestUiState(testing = true, message = "正在测试 DeepSeek…")
+            _llmTest.value = ConnectionTestUiState(testing = true, message = "正在測試 DeepSeek…")
             _llmTest.value = connectionTester.testLlm().toUiState()
         }
     }
@@ -77,11 +76,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun ConnectionTestResult.toUiState(): ConnectionTestUiState =
-        ConnectionTestUiState(
-            testing = false,
-            success = success,
-            message = message,
-        )
+        ConnectionTestUiState(testing = false, success = success, message = message)
 }
 
 data class ConnectionTestUiState(
