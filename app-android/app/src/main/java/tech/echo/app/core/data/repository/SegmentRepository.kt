@@ -8,12 +8,6 @@ import tech.echo.app.core.data.db.SegmentStatus
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * 片段仓库：录音引擎落盘的写入口，UI 读取的统一出口。
- *
- * 录音侧：每切出一段调 [insertSegment]。
- * UI 侧：今天主页 collect [observeCount]/[observeTotalDuration]，历史列表 collect [observeDailyCounts]。
- */
 @Singleton
 class SegmentRepository @Inject constructor(
     private val dao: SegmentDao,
@@ -21,16 +15,10 @@ class SegmentRepository @Inject constructor(
     suspend fun insertSegment(segment: SegmentEntity) = dao.insert(segment)
 
     fun observeByDate(date: String): Flow<List<SegmentEntity>> = dao.observeByDate(date)
-
     fun observeCount(date: String): Flow<Int> = dao.observeCountByDate(date)
-
     fun observeTotalDuration(date: String): Flow<Long> = dao.observeTotalDurationByDate(date)
-
     fun observeDailyCounts(): Flow<List<DayCount>> = dao.observeDailyCounts()
-
     suspend fun deleteOlderThan(beforeDate: String) = dao.deleteOlderThan(beforeDate)
-
-    // —— 阶段 2：上传转写 ——
 
     suspend fun findPendingUpload(limit: Int): List<SegmentEntity> =
         dao.findUploadCandidates()
@@ -39,8 +27,14 @@ class SegmentRepository @Inject constructor(
 
     suspend fun updateStatus(id: String, status: String) = dao.updateStatus(id, status)
 
-    suspend fun markTranscribed(id: String, text: String, speakerLabel: String?) =
-        dao.markTranscribed(id, text, speakerLabel)
+    suspend fun markTranscribed(
+        id: String,
+        text: String,
+        speakerLabel: String?,
+        asrEngine: String?,
+        asrElapsedMs: Long?,
+        asrFallbackReason: String?,
+    ) = dao.markTranscribed(id, text, speakerLabel, asrEngine, asrElapsedMs, asrFallbackReason)
 
     suspend fun claimSpeaker(
         date: String,
@@ -59,7 +53,6 @@ class SegmentRepository @Inject constructor(
     }
 
     suspend fun getDoneByDate(date: String): List<SegmentEntity> = dao.getDoneByDate(date)
-
     suspend fun getByDate(date: String): List<SegmentEntity> = dao.getByDate(date)
 
     private fun SegmentEntity.uploadPriority(): Int =
