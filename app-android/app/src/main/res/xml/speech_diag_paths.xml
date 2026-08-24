@@ -3,4 +3,7 @@
     <cache-path
         name="speech_diag_cache"
         path="connection-test/" />
+    <files-path
+        name="echo_audio_segments"
+        path="audio/" />
 </paths>
