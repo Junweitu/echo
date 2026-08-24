@@ -13,7 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,29 +28,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.Lifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
-import tech.echo.app.core.audio.PromotedNotificationPermission
-import tech.echo.app.core.audio.PromotedNotificationPermissionState
-import tech.echo.app.core.settings.VolcAsrResourceIds
 import tech.echo.app.ui.theme.EchoSpacing
 
-/**
- * 设置页：用户填写火山 ASR / DeepSeek 配置，保存到加密存储。
- *
- * 遵守 ui-design.md：M3 原生组件、单列、近黑主色、低密度留白。
- * key 字段用密码遮罩，避免肩窥。
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -63,13 +47,6 @@ fun SettingsScreen(
     val saved by viewModel.saved.collectAsStateWithLifecycle()
     val asrTest by viewModel.asrTest.collectAsStateWithLifecycle()
     val llmTest by viewModel.llmTest.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    var promotedState by remember {
-        mutableStateOf(PromotedNotificationPermission.current(context))
-    }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        promotedState = PromotedNotificationPermission.current(context)
-    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -96,31 +73,14 @@ fun SettingsScreen(
                 .padding(horizontal = EchoSpacing.pageHorizontal),
             verticalArrangement = Arrangement.spacedBy(EchoSpacing.elementGap),
         ) {
-            LiveUpdateSettingsSection(
-                state = promotedState,
-                onOpenSettings = { PromotedNotificationPermission.openSettings(context) },
-            )
-
-            SectionTitle("火山引擎 · 语音转写")
-            ConfigField(
-                label = "App ID / API Key",
-                value = form.volcAppId,
-                onValueChange = { v -> viewModel.update { it.copy(volcAppId = v) } },
-            )
-            ConfigField(
-                label = "Access Key（旧控制台）",
-                value = form.volcAccessKey,
-                onValueChange = { v -> viewModel.update { it.copy(volcAccessKey = v) } },
-                isSecret = true,
-            )
-            ConfigField(
-                label = "Resource ID",
-                value = form.volcResourceId,
-                onValueChange = { v -> viewModel.update { it.copy(volcResourceId = v) } },
-                supportingText = VolcAsrResourceIds.settingsHint(form.volcResourceId),
+            SectionTitle("本机语音识别")
+            Text(
+                "Vosk 小型中文模型，完全在手机上转写；不需要火山引擎，也不按录音时数收费。第一次测试需要先解压模型。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ConnectionTestButton(
-                text = "测试豆包语音连接",
+                text = "测试本机中文语音识别",
                 state = asrTest,
                 onClick = viewModel::testAsr,
             )
@@ -129,18 +89,18 @@ fun SettingsScreen(
             ConfigField(
                 label = "Base URL",
                 value = form.deepSeekBaseUrl,
-                onValueChange = { v -> viewModel.update { it.copy(deepSeekBaseUrl = v) } },
+                onValueChange = { viewModel.update { cfg -> cfg.copy(deepSeekBaseUrl = it) } },
             )
             ConfigField(
                 label = "API Key",
                 value = form.deepSeekApiKey,
-                onValueChange = { v -> viewModel.update { it.copy(deepSeekApiKey = v) } },
+                onValueChange = { viewModel.update { cfg -> cfg.copy(deepSeekApiKey = it) } },
                 isSecret = true,
             )
             ConfigField(
                 label = "模型名",
                 value = form.deepSeekModel,
-                onValueChange = { v -> viewModel.update { it.copy(deepSeekModel = v) } },
+                onValueChange = { viewModel.update { cfg -> cfg.copy(deepSeekModel = it) } },
             )
             ConnectionTestButton(
                 text = "测试 DeepSeek 连接",
@@ -156,45 +116,11 @@ fun SettingsScreen(
             }
 
             Text(
-                "密钥仅加密保存在本机，不上传、不进安装包。",
+                "本机 ASR 不上传录音；每日整理仍会把转写文字发送给你配置的 DeepSeek 服务。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = EchoSpacing.sectionGap),
             )
-        }
-    }
-}
-
-@Composable
-private fun LiveUpdateSettingsSection(
-    state: PromotedNotificationPermissionState,
-    onOpenSettings: () -> Unit,
-) {
-    if (!state.supported) return
-
-    SectionTitle("后台状态")
-    Text(
-        text = if (state.enabled) "实时活动已开启" else "实时活动未开启",
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    Text(
-        text = if (state.enabled) {
-            "系统可在顶部状态区显示聆听、记录和暂停。"
-        } else {
-            "打开后，系统才会把录音状态提升到顶部状态区。"
-        },
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    if (state.needsUserAction) {
-        OutlinedButton(
-            onClick = onOpenSettings,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Outlined.Notifications, contentDescription = null)
-            Spacer(Modifier.width(EchoSpacing.elementGapSmall))
-            Text("打开实时活动设置")
         }
     }
 }
@@ -211,10 +137,7 @@ private fun ConnectionTestButton(
         modifier = Modifier.fillMaxWidth(),
     ) {
         if (state.testing) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-            )
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
         } else {
             Icon(Icons.Filled.PlayArrow, contentDescription = null)
         }
@@ -234,7 +157,6 @@ private fun ConnectionTestButton(
     }
 }
 
-/** 分组标题（火山 / DeepSeek）。 */
 @Composable
 private fun SectionTitle(text: String) {
     Text(
@@ -245,21 +167,17 @@ private fun SectionTitle(text: String) {
     )
 }
 
-/** 单个配置输入框；isSecret=true 时密码遮罩。 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ConfigField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     isSecret: Boolean = false,
-    supportingText: String? = null,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
-        supportingText = supportingText?.let { text -> { Text(text) } },
         singleLine = true,
         visualTransformation = if (isSecret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         keyboardOptions = KeyboardOptions(
