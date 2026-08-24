@@ -15,10 +15,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,21 +39,14 @@ fun SummaryTab(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(horizontal = EchoSpacing.pageHorizontal),
     ) {
         Spacer(Modifier.height(38.dp))
         Section(
-            title = "日记",
+            title = "日記",
             showDivider = summary.todos.isNotEmpty() || summary.inspirations.isNotEmpty() || summary.timeline.isNotEmpty(),
-            trailing = {
-                RegenerateSummaryAction(
-                    loading = isRegenerating,
-                    onClick = onRegenerateSummary,
-                )
-            },
+            trailing = { RegenerateSummaryAction(isRegenerating, onRegenerateSummary) },
         ) {
             Text(
                 summary.diary,
@@ -67,29 +60,22 @@ fun SummaryTab(
         }
 
         if (summary.todos.isNotEmpty()) {
-            Section(title = "待办", showDivider = summary.inspirations.isNotEmpty() || summary.timeline.isNotEmpty()) {
+            Section(title = "待辦", showDivider = summary.inspirations.isNotEmpty() || summary.timeline.isNotEmpty()) {
                 summary.todos.forEach { TodoLine(it) }
             }
         }
-
         if (summary.inspirations.isNotEmpty()) {
-            Section(title = "灵感", showDivider = summary.timeline.isNotEmpty()) {
+            Section(title = "靈感", showDivider = summary.timeline.isNotEmpty()) {
                 summary.inspirations.forEach { InspirationLine(it) }
             }
         }
-
         if (summary.timeline.isNotEmpty()) {
-            Section(title = "时间线", showDivider = false) {
+            Section(title = "時間線", showDivider = false) {
                 summary.timeline.forEachIndexed { index, entry ->
-                    TimelineRow(
-                        entry = entry,
-                        first = index == 0,
-                        last = index == summary.timeline.lastIndex,
-                    )
+                    TimelineRow(entry, index == 0, index == summary.timeline.lastIndex)
                 }
             }
         }
-
         Spacer(Modifier.height(48.dp))
     }
 }
@@ -101,10 +87,7 @@ private fun Section(
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             title,
             style = MaterialTheme.typography.headlineSmall.copy(
@@ -127,15 +110,9 @@ private fun Section(
 }
 
 @Composable
-private fun RegenerateSummaryAction(
-    loading: Boolean,
-    onClick: () -> Unit,
-) {
+private fun RegenerateSummaryAction(loading: Boolean, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .height(36.dp)
-            .clickable(enabled = !loading, onClick = onClick)
-            .padding(horizontal = 10.dp),
+        modifier = Modifier.height(36.dp).clickable(enabled = !loading, onClick = onClick).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (loading) {
@@ -164,18 +141,10 @@ private fun RegenerateSummaryAction(
 @Composable
 private fun TodoLine(text: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 11.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Canvas(modifier = Modifier.size(28.dp)) {
-            drawCircle(
-                color = androidx.compose.ui.graphics.Color.Transparent,
-                radius = size.minDimension / 2f - 2.dp.toPx(),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()),
-                center = center,
-            )
             drawCircle(
                 color = androidx.compose.ui.graphics.Color(0xFF6F6F6F),
                 radius = size.minDimension / 2f - 2.dp.toPx(),
@@ -207,15 +176,9 @@ private fun InspirationLine(text: String) {
 }
 
 @Composable
-private fun TimelineRow(
-    entry: TimelineEntry,
-    first: Boolean,
-    last: Boolean,
-) {
+private fun TimelineRow(entry: TimelineEntry, first: Boolean, last: Boolean) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(46.dp),
+        modifier = Modifier.fillMaxWidth().height(46.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Canvas(modifier = Modifier.size(width = 26.dp, height = 46.dp)) {
