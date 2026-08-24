@@ -16,8 +16,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0-samsung-asr"
+        versionCode = 4
+        versionName = "0.4.0-asr-diagnostics-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -61,36 +61,28 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     implementation(libs.androidx.navigation.compose)
-
     implementation(libs.kotlinx.coroutines.android)
 
-    // Room（本地片段存储）
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Hilt（依赖注入）
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Silero VAD（ONNX Runtime 端上推理）
     implementation(libs.onnxruntime.android)
 
-    // 本机离线中文 ASR（Vosk，作为 Samsung/Bixby 失败时的备用）
     implementation("net.java.dev.jna:jna:5.18.1@aar")
     implementation("com.alphacephei:vosk-android:0.3.75@aar")
 
-    // 网络（DeepSeek LLM；Samsung/Bixby 系统 ASR 由 Android SpeechRecognizer 调用）
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
 
-    // 配置加密存储
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
 
-    // WorkManager（语音转写 / 每日整理调度）
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
