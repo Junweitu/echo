@@ -52,32 +52,16 @@ fun TodayScreen(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
                 .padding(horizontal = EchoSpacing.pageHorizontal),
         ) {
-            TodayHeader(
-                onOpenHistory = onOpenHistory,
-                onOpenSettings = onOpenSettings,
-            )
-
+            TodayHeader(onOpenHistory, onOpenSettings)
             Spacer(Modifier.weight(0.92f))
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 RecordingControl(status = state.status, onClick = onToggleRecording)
-
                 Spacer(Modifier.height(28.dp))
-
                 Text(
                     text = state.status.primaryText(),
                     style = MaterialTheme.typography.headlineSmall.copy(
@@ -95,11 +79,8 @@ fun TodayScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
-
             }
-
             Spacer(Modifier.weight(0.78f))
-
             SummaryEntry(
                 summaryReady = state.summaryReady,
                 segmentCount = state.segmentCount,
@@ -107,25 +88,19 @@ fun TodayScreen(
                 onClick = onOpenSummary,
                 onSummarizeToday = onSummarizeToday,
             )
-
             Spacer(Modifier.height(44.dp))
         }
     }
 }
 
 @Composable
-private fun TodayHeader(
-    onOpenHistory: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
+private fun TodayHeader(onOpenHistory: () -> Unit, onOpenSettings: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 30.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "回声",
+            text = "回聲",
             style = MaterialTheme.typography.headlineLarge.copy(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 26.sp,
@@ -135,35 +110,21 @@ private fun TodayHeader(
         )
         Spacer(Modifier.weight(1f))
         HeaderAction(
-            icon = { Icon(Icons.Outlined.AccessTime, contentDescription = "查看历史") },
-            contentDescription = "查看历史",
+            icon = { Icon(Icons.Outlined.AccessTime, contentDescription = "查看歷史") },
             onClick = onOpenHistory,
         )
         Spacer(Modifier.width(12.dp))
         HeaderAction(
-            icon = { Icon(Icons.Outlined.Tune, contentDescription = "设置") },
-            contentDescription = "设置",
+            icon = { Icon(Icons.Outlined.Tune, contentDescription = "設定") },
             onClick = onOpenSettings,
         )
     }
 }
 
 @Composable
-private fun HeaderAction(
-    icon: @Composable () -> Unit,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(44.dp),
-    ) {
-        Box(
-            modifier = Modifier.size(28.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            icon()
-        }
+private fun HeaderAction(icon: @Composable () -> Unit, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(44.dp)) {
+        Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) { icon() }
     }
 }
 
@@ -176,31 +137,24 @@ private fun SummaryEntry(
     onSummarizeToday: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                if (!summaryReady) onSummarizeToday()
-                onClick()
-            },
+        modifier = Modifier.fillMaxWidth().clickable {
+            if (!summaryReady) onSummarizeToday()
+            onClick()
+        },
         shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 3.dp,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             EchoSummaryIcon()
             Spacer(Modifier.width(16.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "今日回声",
+                    text = "今日回聲",
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 17.sp,
@@ -209,12 +163,12 @@ private fun SummaryEntry(
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = if (summaryReady) "今天的声音已整理" else "今天的声音待整理",
+                    text = if (summaryReady) "今天的聲音已整理" else "今天的聲音待整理",
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = "$segmentCount 段 · 约 $totalMinutes 分钟 · ${if (summaryReady) "已整理" else "待整理"}",
+                    text = "$segmentCount 段 · 約 $totalMinutes 分鐘 · ${if (summaryReady) "已整理" else "待整理"}",
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -258,15 +212,15 @@ private fun EchoSummaryIcon() {
 }
 
 private fun RecordingStatus.primaryText(): String = when (this) {
-    RecordingStatus.PAUSED -> "已暂停"
-    RecordingStatus.LISTENING -> "正在聆听"
-    RecordingStatus.RECORDING -> "正在记录"
+    RecordingStatus.PAUSED -> "已暫停"
+    RecordingStatus.LISTENING -> "正在聆聽"
+    RecordingStatus.RECORDING -> "正在記錄"
 }
 
 private fun RecordingStatus.hintText(): String = when (this) {
-    RecordingStatus.PAUSED -> "点按开始聆听"
-    RecordingStatus.LISTENING -> "只捕捉有内容的声音"
-    RecordingStatus.RECORDING -> "检测到说话"
+    RecordingStatus.PAUSED -> "點一下開始聆聽"
+    RecordingStatus.LISTENING -> "只擷取有內容的聲音"
+    RecordingStatus.RECORDING -> "偵測到說話"
 }
 
 private fun RecordingStatus.primaryColor() = when (this) {
