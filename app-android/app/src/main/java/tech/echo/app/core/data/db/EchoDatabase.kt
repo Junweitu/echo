@@ -6,17 +6,9 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-/**
- * echo 本地数据库。
- *
- * v1：仅 segment 表（阶段 1）。
- * v2：新增 daily_summary 表（阶段 2 每日整理）；segment 表字段不变（阶段 1 已预留
- *     transcriptText/speakerLabel/status，阶段 2 直接复用，无需改表）。
- * person 表（声纹）留待阶段 3。
- */
 @Database(
     entities = [SegmentEntity::class, DailySummaryEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -27,10 +19,6 @@ abstract class EchoDatabase : RoomDatabase() {
     companion object {
         const val NAME = "echo.db"
 
-        /**
-         * v1→v2：仅新增 daily_summary 表。segment 表无结构变化。
-         * 字段类型与 [DailySummaryEntity] 严格对齐：列表/timeline 经 Converters 存为 TEXT。
-         */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -47,6 +35,15 @@ abstract class EchoDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        /** v2→v3：為每段轉寫加入 ASR 來源、耗時與備援原因。 */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `segment` ADD COLUMN `asrEngine` TEXT")
+                db.execSQL("ALTER TABLE `segment` ADD COLUMN `asrElapsedMs` INTEGER")
+                db.execSQL("ALTER TABLE `segment` ADD COLUMN `asrFallbackReason` TEXT")
             }
         }
     }
