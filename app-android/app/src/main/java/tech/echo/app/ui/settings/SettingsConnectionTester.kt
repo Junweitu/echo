@@ -5,7 +5,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.echo.app.core.summary.LlmClient
-import tech.echo.app.core.upload.AsrClient
+import tech.echo.app.core.upload.LocalVoskAsrClient
 import java.io.File
 import javax.inject.Inject
 
@@ -16,35 +16,35 @@ data class ConnectionTestResult(
 
 class SettingsConnectionTester internal constructor(
     private val sampleDir: File,
-    private val asrClient: AsrClient,
+    private val localVoskAsrClient: LocalVoskAsrClient,
     private val llmClient: LlmClient,
     private val audioProvider: AsrTestAudioProvider,
 ) {
     @Inject
     constructor(
         @ApplicationContext context: Context,
-        asrClient: AsrClient,
+        localVoskAsrClient: LocalVoskAsrClient,
         llmClient: LlmClient,
         audioProvider: AssetAsrTestAudioProvider,
-    ) : this(File(context.cacheDir, "connection-test"), asrClient, llmClient, audioProvider)
+    ) : this(File(context.cacheDir, "connection-test"), localVoskAsrClient, llmClient, audioProvider)
 
     suspend fun testAsr(): ConnectionTestResult = withContext(Dispatchers.IO) {
         runCatching {
             val file = audioProvider.createSampleFile(sampleDir)
             try {
-                asrClient.transcribe(file)
+                localVoskAsrClient.transcribe(file)
             } finally {
                 file.delete()
             }
         }.fold(
             onSuccess = { utterances ->
                 if (utterances.isNotEmpty()) {
-                    ConnectionTestResult(true, "本机中文语音识别正常：${utterances.first().text.take(24)}")
+                    ConnectionTestResult(true, "Vosk 本机中文识别正常：${utterances.first().text.take(24)}")
                 } else {
-                    ConnectionTestResult(true, "本机中文语音模型已加载（测试音频未识别到文字）")
+                    ConnectionTestResult(true, "Vosk 中文模型已加载（测试音频未识别到文字）")
                 }
             },
-            onFailure = { ConnectionTestResult(false, it.readableMessage("本机语音识别失败")) },
+            onFailure = { ConnectionTestResult(false, it.readableMessage("Vosk 本机语音识别失败")) },
         )
     }
 
