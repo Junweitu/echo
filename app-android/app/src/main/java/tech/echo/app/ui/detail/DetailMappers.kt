@@ -8,9 +8,11 @@ import tech.echo.app.core.model.DailySummary
 import tech.echo.app.core.model.SummaryStatus
 import tech.echo.app.core.model.TimelineEntry
 import tech.echo.app.core.model.TranscriptSegment
+import tech.echo.app.core.text.TraditionalChinese
 import tech.echo.app.core.time.EchoDateFormatter
 import java.time.Clock
 import java.time.ZoneId
+import java.util.Locale
 
 object DetailMappers {
     fun toDailySummary(
@@ -21,13 +23,19 @@ object DetailMappers {
     ): DailySummary =
         DailySummary(
             date = date,
-            displayDate = EchoDateFormatter.displayDate(date, clock),
+            displayDate = TraditionalChinese.convert(EchoDateFormatter.displayDate(date, clock)),
             summaryStatus = entity?.status.toUiStatus(),
-            diary = entity?.diary?.takeIf { it.isNotBlank() } ?: "还没有整理结果",
-            todos = entity?.todos.orEmpty(),
-            inspirations = entity?.inspirations.orEmpty(),
+            diary = entity?.diary?.takeIf { it.isNotBlank() }
+                ?.let(TraditionalChinese::convert)
+                ?: "還沒有整理結果",
+            todos = TraditionalChinese.convert(entity?.todos.orEmpty()),
+            inspirations = TraditionalChinese.convert(entity?.inspirations.orEmpty()),
             timeline = entity?.timeline.orEmpty().map {
-                TimelineEntry(time = it.time, person = it.person, topic = it.topic)
+                TimelineEntry(
+                    time = it.time,
+                    person = TraditionalChinese.convert(it.person),
+                    topic = TraditionalChinese.convert(it.topic),
+                )
             },
         )
 
@@ -36,6 +44,10 @@ object DetailMappers {
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): List<TranscriptSegment> =
         segments.sortedByDescending { it.startTime }.map { segment ->
+            val transcript = segment.transcriptText
+                ?.takeIf { it.isNotBlank() }
+                ?.let(TraditionalChinese::convert)
+                ?: segment.transcriptFallback()
             TranscriptSegment(
                 id = segment.id,
                 speakerKey = segment.speakerLabel?.takeIf { it.isNotBlank() },
@@ -45,26 +57,42 @@ object DetailMappers {
                 audioPath = segment.audioPath,
                 durationMs = segment.durationMs,
                 status = segment.status,
-                text = segment.transcriptText?.takeIf { it.isNotBlank() } ?: segment.transcriptFallback(),
+                text = transcript + segment.asrDiagnosticDisplay(),
                 startTimeMs = segment.startTime,
             )
         }
 
     private fun SegmentEntity.displaySpeakerLabel(): String =
         when {
-            !speakerPersonId.isNullOrBlank() -> speakerPersonId
-            !speakerLabel.isNullOrBlank() -> "Speaker $speakerLabel"
-            else -> "Speaker A"
+            !speakerPersonId.isNullOrBlank() -> TraditionalChinese.convert(speakerPersonId)
+            !speakerLabel.isNullOrBlank() -> "說話者 $speakerLabel"
+            else -> "說話者 A"
         }
 
     private fun SegmentEntity.transcriptFallback(): String =
         when (status) {
-            SegmentStatus.RECORDED.name -> "等待上传转写"
+            SegmentStatus.RECORDED.name -> "等待語音轉寫"
             SegmentStatus.UPLOADING.name,
-            SegmentStatus.TRANSCRIBING.name -> "正在转写"
-            SegmentStatus.FAILED.name -> "转写失败，后台会重试"
-        else -> "暂无转写文本"
+            SegmentStatus.TRANSCRIBING.name -> "正在轉寫"
+            SegmentStatus.FAILED.name -> "轉寫失敗，背景會重試"
+            else -> "暫無轉寫文字"
         }
+
+    private fun SegmentEntity.asrDiagnosticDisplay(): String {
+        val engine = asrEngine?.takeIf { it.isNotBlank() } ?: return ""
+        val seconds = asrElapsedMs?.let { String.format(Locale.US, "%.2f", it / 1000.0) }
+        return buildString {
+            append("\n\n［ASR：")
+            append(TraditionalChinese.convert(engine))
+            if (seconds != null) append(" · ${seconds} 秒")
+            append('］')
+            asrFallbackReason?.takeIf { it.isNotBlank() }?.let {
+                append("\n［Samsung 備援原因：")
+                append(TraditionalChinese.convert(it))
+                append('］')
+            }
+        }
+    }
 
     private fun String?.toUiStatus(): SummaryStatus =
         when (this) {
