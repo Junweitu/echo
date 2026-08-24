@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import tech.echo.app.core.text.TraditionalChinese
 import tech.echo.app.ui.theme.EchoSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,17 +61,12 @@ fun SettingsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
     ) { inner ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(inner)
-                .verticalScroll(rememberScrollState())
+            modifier = Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState())
                 .padding(horizontal = EchoSpacing.pageHorizontal),
             verticalArrangement = Arrangement.spacedBy(EchoSpacing.elementGap),
         ) {
@@ -87,11 +83,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            ConnectionTestButton(
-                text = "測試 Samsung / 系統 ASR",
-                state = systemSpeechTest,
-                onClick = viewModel::testSystemSpeech,
-            )
+            ConnectionTestButton("測試 Samsung / 系統 ASR", systemSpeechTest, viewModel::testSystemSpeech)
 
             SectionTitle("Vosk 本機語音辨識（自動備援）")
             Text(
@@ -99,34 +91,13 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            ConnectionTestButton(
-                text = "測試 Vosk 本機中文語音辨識",
-                state = asrTest,
-                onClick = viewModel::testAsr,
-            )
+            ConnectionTestButton("測試 Vosk 本機中文語音辨識", asrTest, viewModel::testAsr)
 
             SectionTitle("DeepSeek · 每日整理")
-            ConfigField(
-                label = "Base URL",
-                value = form.deepSeekBaseUrl,
-                onValueChange = { viewModel.update { cfg -> cfg.copy(deepSeekBaseUrl = it) } },
-            )
-            ConfigField(
-                label = "API Key",
-                value = form.deepSeekApiKey,
-                onValueChange = { viewModel.update { cfg -> cfg.copy(deepSeekApiKey = it) } },
-                isSecret = true,
-            )
-            ConfigField(
-                label = "模型名稱",
-                value = form.deepSeekModel,
-                onValueChange = { viewModel.update { cfg -> cfg.copy(deepSeekModel = it) } },
-            )
-            ConnectionTestButton(
-                text = "測試 DeepSeek 連線",
-                state = llmTest,
-                onClick = viewModel::testLlm,
-            )
+            ConfigField("Base URL", form.deepSeekBaseUrl, { viewModel.update { cfg -> cfg.copy(deepSeekBaseUrl = it) } })
+            ConfigField("API Key", form.deepSeekApiKey, { viewModel.update { cfg -> cfg.copy(deepSeekApiKey = it) } }, true)
+            ConfigField("模型名稱", form.deepSeekModel, { viewModel.update { cfg -> cfg.copy(deepSeekModel = it) } })
+            ConnectionTestButton("測試 DeepSeek 連線", llmTest, viewModel::testLlm)
 
             Button(
                 onClick = viewModel::save,
@@ -146,16 +117,8 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun ConnectionTestButton(
-    text: String,
-    state: ConnectionTestUiState,
-    onClick: () -> Unit,
-) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = !state.testing,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+private fun ConnectionTestButton(text: String, state: ConnectionTestUiState, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, enabled = !state.testing, modifier = Modifier.fillMaxWidth()) {
         if (state.testing) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
         } else {
@@ -166,7 +129,7 @@ private fun ConnectionTestButton(
     }
     state.message?.let { message ->
         Text(
-            text = message,
+            text = TraditionalChinese.convert(message),
             style = MaterialTheme.typography.bodyMedium,
             color = when (state.success) {
                 true -> MaterialTheme.colorScheme.primary
@@ -200,9 +163,7 @@ private fun ConfigField(
         label = { Text(label) },
         singleLine = true,
         visualTransformation = if (isSecret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = if (isSecret) KeyboardType.Password else KeyboardType.Text,
-        ),
+        keyboardOptions = KeyboardOptions(keyboardType = if (isSecret) KeyboardType.Password else KeyboardType.Text),
         modifier = Modifier.fillMaxWidth(),
     )
 }
