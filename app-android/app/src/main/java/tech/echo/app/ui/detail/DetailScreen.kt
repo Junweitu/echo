@@ -42,26 +42,12 @@ fun DetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var tab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("整理", "原始记录")
+    val tabs = listOf("整理", "原始記錄")
 
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-        ) {
-            DetailHeader(
-                title = state.summary.displayDate,
-                onBack = onBack,
-            )
-            MinimalTabs(
-                tabs = tabs,
-                selected = tab,
-                onSelected = { tab = it },
-            )
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            DetailHeader(title = state.summary.displayDate, onBack = onBack)
+            MinimalTabs(tabs = tabs, selected = tab, onSelected = { tab = it })
             when (tab) {
                 0 -> SummaryTab(
                     summary = state.summary,
@@ -80,14 +66,9 @@ fun DetailScreen(
 }
 
 @Composable
-private fun DetailHeader(
-    title: String,
-    onBack: () -> Unit,
-) {
+private fun DetailHeader(title: String, onBack: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp, top = 24.dp, end = 16.dp, bottom = 18.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 24.dp, end = 16.dp, bottom = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
@@ -111,22 +92,11 @@ private fun DetailHeader(
 }
 
 @Composable
-private fun MinimalTabs(
-    tabs: List<String>,
-    selected: Int,
-    onSelected: (Int) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = EchoSpacing.pageHorizontal),
-    ) {
+private fun MinimalTabs(tabs: List<String>, selected: Int, onSelected: (Int) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = EchoSpacing.pageHorizontal)) {
         tabs.forEachIndexed { index, title ->
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onSelected(index) }
-                    .padding(vertical = 18.dp),
+                modifier = Modifier.weight(1f).clickable { onSelected(index) }.padding(vertical = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
@@ -136,18 +106,11 @@ private fun MinimalTabs(
                         fontSize = 15.sp,
                         lineHeight = 22.sp,
                     ),
-                    color = if (index == selected) {
-                        MaterialTheme.colorScheme.onBackground
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                    color = if (index == selected) MaterialTheme.colorScheme.onBackground
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .size(width = 48.dp, height = 4.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
+                Box(modifier = Modifier.size(width = 48.dp, height = 4.dp), contentAlignment = Alignment.Center) {
                     if (index == selected) {
                         HorizontalDivider(
                             modifier = Modifier.fillMaxWidth(),
