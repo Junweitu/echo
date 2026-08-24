@@ -1,15 +1,14 @@
 package tech.echo.app.core.settings
 
 /**
- * App 内用户配置（见 design.md §6.2 / journal 2026-05-29 决策）。
+ * App 内用户配置。
  *
- * echo 不内置任何 key，全部由用户在设置页填写，加密存本地。
- * 火山配置：旧控制台用 App ID + Access Key；新控制台可把 API Key 填在 App ID/API Key
- * 字段并留空 Access Key。DeepSeek 三件套：每日整理 LLM 用。
- * baseUrl/模型名给默认值可改，key 留空表示未配置。
+ * 当前正式 ASR 使用本机 Vosk，因此语音转写不再需要火山引擎密钥。
+ * 旧的火山字段暂时保留，只为兼容既有设置数据与未来可选回退；设置页不再要求填写。
+ * DeepSeek 三件套继续用于每日整理。
  */
 data class AppConfig(
-    // —— 火山引擎 ASR ——
+    // —— 旧火山引擎 ASR 配置（兼容保留，当前本机 ASR 不使用）——
     val volcAppId: String = "",
     val volcAccessKey: String = "",
     val volcResourceId: String = DEFAULT_VOLC_RESOURCE_ID,
@@ -18,9 +17,9 @@ data class AppConfig(
     val deepSeekApiKey: String = "",
     val deepSeekModel: String = DEFAULT_DEEPSEEK_MODEL,
 ) {
-    /** ASR 配置是否齐全（Resource ID + 旧/新控制台任一 key 形式）。 */
+    /** 当前本机 ASR 随 APK 提供，不需要用户配置。 */
     val isAsrConfigured: Boolean
-        get() = volcAppId.isNotBlank() && volcResourceId.isNotBlank()
+        get() = true
 
     /** LLM 配置是否齐全（缺则每日整理不启动）。 */
     val isLlmConfigured: Boolean
