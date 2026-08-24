@@ -11,9 +11,7 @@ import tech.echo.app.core.settings.AppConfig
 import tech.echo.app.core.settings.SettingsRepository
 import javax.inject.Inject
 
-/**
- * 设置页 ViewModel：加载当前配置到可编辑表单，保存回加密存储。
- */
+/** 设置页 ViewModel：本机 ASR 无需密钥；这里只保存 DeepSeek 等可编辑配置。 */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
@@ -46,8 +44,7 @@ class SettingsViewModel @Inject constructor(
 
     fun testAsr() {
         viewModelScope.launch {
-            saveCurrentFormForTest()
-            _asrTest.value = ConnectionTestUiState(testing = true, message = "正在测试豆包语音…")
+            _asrTest.value = ConnectionTestUiState(testing = true, message = "正在加载本机中文语音模型…")
             _asrTest.value = connectionTester.testAsr().toUiState()
         }
     }
