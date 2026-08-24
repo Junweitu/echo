@@ -16,6 +16,7 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
     private val connectionTester: SettingsConnectionTester,
+    private val systemSpeechDiagnostic: SystemSpeechDiagnostic,
 ) : ViewModel() {
 
     private val _form = MutableStateFlow(repository.current())
@@ -26,6 +27,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _asrTest = MutableStateFlow(ConnectionTestUiState())
     val asrTest: StateFlow<ConnectionTestUiState> = _asrTest.asStateFlow()
+
+    private val _systemSpeechTest = MutableStateFlow(ConnectionTestUiState())
+    val systemSpeechTest: StateFlow<ConnectionTestUiState> = _systemSpeechTest.asStateFlow()
 
     private val _llmTest = MutableStateFlow(ConnectionTestUiState())
     val llmTest: StateFlow<ConnectionTestUiState> = _llmTest.asStateFlow()
@@ -46,6 +50,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _asrTest.value = ConnectionTestUiState(testing = true, message = "正在加载本机中文语音模型…")
             _asrTest.value = connectionTester.testAsr().toUiState()
+        }
+    }
+
+    fun testSystemSpeech() {
+        viewModelScope.launch {
+            _systemSpeechTest.value = ConnectionTestUiState(
+                testing = true,
+                message = "正在检查 Samsung / Android 系统语音识别，并测试 WAV 注入…",
+            )
+            _systemSpeechTest.value = systemSpeechDiagnostic.run().toUiState()
         }
     }
 
