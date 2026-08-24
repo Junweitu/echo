@@ -29,6 +29,11 @@ import kotlin.coroutines.resumeWithException
 
 /**
  * 正式 ASR：Samsung/Bixby 優先，失敗時自動改用完全離線的 Vosk 中文模型。
+ *
+ * 注意：不再先用 PackageManager.resolveService() 判斷 Samsung 是否可用。
+ * Note10+ 實測顯示 Samsung 的 RecognitionServiceTrampoline 可以被
+ * SpeechRecognizer 直接建立並成功接受 WAV 注入，但 resolveService() 可能回傳 null。
+ * 因此 Android 12+ 會直接嘗試 Samsung；真正失敗時再依實際錯誤改走 Vosk。
  */
 @Singleton
 class SamsungPreferredAsrClient @Inject constructor(
@@ -43,17 +48,12 @@ class SamsungPreferredAsrClient @Inject constructor(
         require(audioFile.exists()) { "錄音檔不存在：${audioFile.absolutePath}" }
         val started = SystemClock.elapsedRealtime()
 
-        if (!canUseSamsungInjection()) {
-            val result = localFallback.transcribe(audioFile)
-            diagnosticsStore.record(
-                audioFile.absolutePath,
-                AsrDiagnostic(
-                    engine = ENGINE_VOSK,
-                    elapsedMs = SystemClock.elapsedRealtime() - started,
-                    fallbackReason = "Samsung RecognitionService 不可用",
-                )
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return transcribeWithFallback(
+                audioFile = audioFile,
+                started = started,
+                fallbackReason = "Android 12 以下不支援 WAV 注入",
             )
-            return result
         }
 
         return mutex.withLock {
@@ -70,28 +70,36 @@ class SamsungPreferredAsrClient @Inject constructor(
                         result
                     },
                     onFailure = { samsungError ->
-                        Log.w(TAG, "Samsung ASR failed; falling back to Vosk: ${samsungError.message}", samsungError)
-                        val result = localFallback.transcribe(audioFile)
-                        diagnosticsStore.record(
-                            audioFile.absolutePath,
-                            AsrDiagnostic(
-                                engine = ENGINE_VOSK,
-                                elapsedMs = SystemClock.elapsedRealtime() - started,
-                                fallbackReason = samsungError.message ?: samsungError.javaClass.simpleName,
-                            )
+                        Log.w(
+                            TAG,
+                            "Samsung ASR failed; falling back to Vosk: ${samsungError.message}",
+                            samsungError,
                         )
-                        result
+                        transcribeWithFallback(
+                            audioFile = audioFile,
+                            started = started,
+                            fallbackReason = samsungError.message ?: samsungError.javaClass.simpleName,
+                        )
                     },
                 )
         }
     }
 
-    private fun canUseSamsungInjection(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
-        return runCatching {
-            val intent = Intent("android.speech.RecognitionService").setComponent(SAMSUNG_COMPONENT)
-            context.packageManager.resolveService(intent, 0) != null
-        }.getOrDefault(false)
+    private suspend fun transcribeWithFallback(
+        audioFile: File,
+        started: Long,
+        fallbackReason: String,
+    ): List<AsrUtterance> {
+        val result = localFallback.transcribe(audioFile)
+        diagnosticsStore.record(
+            audioFile.absolutePath,
+            AsrDiagnostic(
+                engine = ENGINE_VOSK,
+                elapsedMs = SystemClock.elapsedRealtime() - started,
+                fallbackReason = fallbackReason,
+            )
+        )
+        return result
     }
 
     private suspend fun transcribeWithSamsung(audioFile: File): List<AsrUtterance> {
@@ -159,7 +167,13 @@ class SamsungPreferredAsrClient @Inject constructor(
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
                 override fun onError(error: Int) {
-                    finish(Result.failure(IllegalStateException("Samsung SpeechRecognizer error=$error (${errorName(error)})")))
+                    finish(
+                        Result.failure(
+                            IllegalStateException(
+                                "Samsung SpeechRecognizer error=$error (${errorName(error)})"
+                            )
+                        )
+                    )
                 }
 
                 override fun onResults(results: Bundle?) {
@@ -189,9 +203,7 @@ class SamsungPreferredAsrClient @Inject constructor(
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    putExtra(RecognizerIntent.EXTRA_AUDIO_INJECT_SOURCE, uri)
-                }
+                putExtra(RecognizerIntent.EXTRA_AUDIO_INJECT_SOURCE, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 clipData = ClipData.newRawUri("echo-segment", uri)
             }
