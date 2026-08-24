@@ -16,8 +16,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0-local-asr"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -77,7 +77,11 @@ dependencies {
     // Silero VAD（ONNX Runtime 端上推理）
     implementation(libs.onnxruntime.android)
 
-    // 网络（火山 ASR / DeepSeek LLM）
+    // 本机离线中文 ASR（Vosk）
+    implementation("net.java.dev.jna:jna:5.18.1@aar")
+    implementation("com.alphacephei:vosk-android:0.3.75@aar")
+
+    // 网络（DeepSeek LLM；火山 ASR 客户端暂保留作可选回退）
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
@@ -86,7 +90,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
 
-    // WorkManager（上传补传 / 每日整理调度）
+    // WorkManager（本机转写 / 每日整理调度）
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
