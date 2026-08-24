@@ -7,14 +7,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import tech.echo.app.core.data.db.DailySummaryDao
 import tech.echo.app.core.data.db.EchoDatabase
 import tech.echo.app.core.data.db.SegmentDao
-import tech.echo.app.core.data.db.DailySummaryDao
 import javax.inject.Singleton
 
-/**
- * 数据层 Hilt 模块：提供 Room 数据库与 DAO。
- */
 @Module
 @InstallIn(SingletonComponent::class)
 object DataModule {
@@ -23,7 +20,7 @@ object DataModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): EchoDatabase =
         Room.databaseBuilder(context, EchoDatabase::class.java, EchoDatabase.NAME)
-            .addMigrations(EchoDatabase.MIGRATION_1_2)
+            .addMigrations(EchoDatabase.MIGRATION_1_2, EchoDatabase.MIGRATION_2_3)
             .build()
 
     @Provides
