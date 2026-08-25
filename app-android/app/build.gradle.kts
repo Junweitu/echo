@@ -19,8 +19,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.3-stable-signing-zhTW"
+        versionCode = 8
+        versionName = "0.4.4-no-audio-focus-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
