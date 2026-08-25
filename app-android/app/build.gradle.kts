@@ -19,8 +19,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.4.4-no-audio-focus-zhTW"
+        versionCode = 9
+        versionName = "0.5.0-sensevoice-offline-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -60,6 +60,11 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // SenseVoice ONNX 模型很大，保持原始資產格式，讓 sherpa-onnx 可由 AssetManager 穩定讀取。
+    androidResources {
+        noCompress += listOf("onnx")
+    }
 }
 
 dependencies {
@@ -81,12 +86,12 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
 
-    // Room（本地片段存储）
+    // Room（本地片段儲存）
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Hilt（依赖注入）
+    // Hilt（依賴注入）
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
@@ -94,20 +99,20 @@ dependencies {
     // Silero VAD（ONNX Runtime 端上推理）
     implementation(libs.onnxruntime.android)
 
-    // 本机离线中文 ASR（Vosk，作为 Samsung/Bixby 失败时的备用）
-    implementation("net.java.dev.jna:jna:5.18.1@aar")
-    implementation("com.alphacephei:vosk-android:0.3.75@aar")
+    // 本機離線 ASR：sherpa-onnx + SenseVoice。
+    // AAR 由 GitHub Actions 從 sherpa-onnx 官方 release 下載到 app/libs。
+    implementation(files("libs/sherpa-onnx-1.13.4.aar"))
 
-    // 网络（DeepSeek LLM；Samsung/Bixby 系统 ASR 由 Android SpeechRecognizer 调用）
+    // 網路只用於 DeepSeek LLM；語音辨識本身完全離線。
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
 
-    // 配置加密存储
+    // 配置加密儲存
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
 
-    // WorkManager（语音转写 / 每日整理调度）
+    // WorkManager（語音轉寫 / 每日整理排程）
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
