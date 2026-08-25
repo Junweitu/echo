@@ -19,8 +19,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.5.0-sensevoice-offline-zhTW"
+        versionCode = 10
+        versionName = "0.5.1-sensevoice-queue-vad-fix-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
