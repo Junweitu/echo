@@ -3,27 +3,19 @@ package tech.echo.app.core.audio
 import kotlin.math.sqrt
 
 /**
- * Silero 优先的轻量兜底 VAD。
+ * 相容舊注入點的 VAD 包裝器。
  *
- * 真机实测当前 ONNX 输出会在明显人声下保持极低概率，导致状态机永远不启动。
- * 这里仅在模型低分但帧能量明显达到人声级别时兜底，避免录音 MVP 完全漏段。
+ * 之前只要 RMS 超過很低的固定門檻，就會強行把 Silero 低分改成「有聲」，
+ * 在真機環境底噪較高時會讓一小句話一路延長到 60 秒上限。
+ * 現在 sherpa-onnx 已接管 Silero VAD，因此不再用能量值覆寫模型判斷。
  */
 class EnergyFallbackVadDetector(
     private val delegate: VadDetector,
-    private val rmsThreshold: Float = AudioConfig.ENERGY_VAD_RMS_THRESHOLD,
-    private val fallbackSpeechProbability: Float = AudioConfig.VAD_THRESHOLD,
+    @Suppress("UNUSED_PARAMETER") private val rmsThreshold: Float = AudioConfig.ENERGY_VAD_RMS_THRESHOLD,
+    @Suppress("UNUSED_PARAMETER") private val fallbackSpeechProbability: Float = AudioConfig.VAD_THRESHOLD,
 ) : VadDetector {
 
-    override fun probability(frame: ShortArray): Float {
-        val modelProbability = delegate.probability(frame)
-        if (modelProbability >= AudioConfig.VAD_THRESHOLD) return modelProbability
-
-        return if (normalizedRms(frame) >= rmsThreshold) {
-            fallbackSpeechProbability
-        } else {
-            modelProbability
-        }
-    }
+    override fun probability(frame: ShortArray): Float = delegate.probability(frame)
 
     override fun reset() = delegate.reset()
 
