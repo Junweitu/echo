@@ -81,7 +81,7 @@ jobs:
           print(f'Traditionalized {changed} source files')
           PY
 
-      - name: Do not claim voice-call audio focus for background recording
+      - name: Apply microphone and local-ASR runtime fixes
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -89,6 +89,8 @@ jobs:
 
           p = Path('app-android/app/src/main/java/tech/echo/app/core/audio/RecordingService.kt')
           text = p.read_text(encoding='utf-8')
+
+          # Echo is a microphone recorder, not a VoIP app. Do not claim voice-call audio focus.
           pattern = re.compile(
               r'    private fun requestAudioFocus\(\): Boolean \{.*?'
               r'    private fun abandonAudioFocus\(\) \{.*?\n    \}\n',
@@ -96,7 +98,6 @@ jobs:
           )
           replacement = "\n".join([
               "    private fun requestAudioFocus(): Boolean {",
-              "        // Echo only captures microphone audio; do not claim VOICE_COMMUNICATION focus.",
               "        Log.i(TAG, \"audio focus intentionally not requested for microphone-only capture\")",
               "        focusRequest = null",
               "        return true",
@@ -107,11 +108,31 @@ jobs:
               "    }",
               "",
           ])
-          updated, count = pattern.subn(replacement, text, count=1)
+          text, count = pattern.subn(replacement, text, count=1)
           if count != 1:
               raise SystemExit('Unable to patch RecordingService audio-focus methods')
-          p.write_text(updated, encoding='utf-8')
-          print('Patched RecordingService: no VOICE_COMMUNICATION Audio Focus')
+
+          # Use sherpa-onnx Silero directly. The old RMS energy fallback caused room noise
+          # to keep speech open until the 60-second hard split.
+          old_vad = 'EnergyFallbackVadDetector(SileroVadDetector(applicationContext))'
+          if old_vad not in text:
+              raise SystemExit('Unable to find legacy EnergyFallbackVadDetector wrapper')
+          text = text.replace(old_vad, 'SileroVadDetector(applicationContext)', 1)
+
+          # Queue ASR work; never cancel an active SenseVoice transcription when a new
+          # recording segment arrives.
+          text = text.replace('uploadWorkScheduler.enqueueNow()', 'uploadWorkScheduler.enqueue()', 1)
+
+          # When the recording service starts after an app update/restart, immediately
+          # enqueue a worker so rows left in UPLOADING/TRANSCRIBING by older cancelled
+          # workers are retried even before the next speech segment is recorded.
+          marker = '        createChannel()\n'
+          if marker not in text:
+              raise SystemExit('Unable to find RecordingService onCreate marker')
+          text = text.replace(marker, marker + '        uploadWorkScheduler.enqueue()\n', 1)
+
+          p.write_text(text, encoding='utf-8')
+          print('Patched RecordingService: no voice focus, direct Silero VAD, queued SenseVoice work')
           PY
 
       - name: Bundle sherpa-onnx and SenseVoice offline model
