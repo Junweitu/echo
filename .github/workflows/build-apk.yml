@@ -94,20 +94,19 @@ jobs:
               r'    private fun abandonAudioFocus\(\) \{.*?\n    \}\n',
               re.S,
           )
-          replacement = '''    private fun requestAudioFocus(): Boolean {
-              // Echo only captures microphone audio; it must not claim VOICE_COMMUNICATION
-              // playback focus. Android itself arbitrates microphone input when a real call,
-              // VoIP app, or SpeechRecognizer needs access.
-              Log.i(TAG, "audio focus intentionally not requested for microphone-only capture")
-              focusRequest = null
-              return true
-          }
-
-          private fun abandonAudioFocus() {
-              // No-op: Echo no longer requests Audio Focus for microphone-only capture.
-              focusRequest = null
-          }
-'''
+          replacement = "\n".join([
+              "    private fun requestAudioFocus(): Boolean {",
+              "        // Echo only captures microphone audio; do not claim VOICE_COMMUNICATION focus.",
+              "        Log.i(TAG, \"audio focus intentionally not requested for microphone-only capture\")",
+              "        focusRequest = null",
+              "        return true",
+              "    }",
+              "",
+              "    private fun abandonAudioFocus() {",
+              "        focusRequest = null",
+              "    }",
+              "",
+          ])
           updated, count = pattern.subn(replacement, text, count=1)
           if count != 1:
               raise SystemExit('Unable to patch RecordingService audio-focus methods')
