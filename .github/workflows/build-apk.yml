@@ -114,12 +114,30 @@ jobs:
           print('Patched RecordingService: no VOICE_COMMUNICATION Audio Focus')
           PY
 
-      - name: Bundle offline Chinese Vosk model
+      - name: Bundle sherpa-onnx and SenseVoice offline model
         run: |
-          mkdir -p app-android/app/src/main/assets
-          curl -L --fail --retry 3 -o /tmp/vosk-cn.zip https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip
-          unzip -q /tmp/vosk-cn.zip -d app-android/app/src/main/assets
-          test -f app-android/app/src/main/assets/vosk-model-small-cn-0.22/am/final.mdl
+          set -euxo pipefail
+          mkdir -p app-android/app/libs
+          mkdir -p app-android/app/src/main/assets/sensevoice
+
+          curl -L --fail --retry 3 \
+            -o app-android/app/libs/sherpa-onnx-1.13.4.aar \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.4/sherpa-onnx-1.13.4.aar
+
+          curl -L --fail --retry 3 \
+            -o /tmp/sensevoice.tar.bz2 \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09.tar.bz2
+
+          rm -rf /tmp/sensevoice-model
+          mkdir -p /tmp/sensevoice-model
+          tar xjf /tmp/sensevoice.tar.bz2 -C /tmp/sensevoice-model
+          MODEL_DIR=$(find /tmp/sensevoice-model -type d -name 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09' | head -n 1)
+          test -n "$MODEL_DIR"
+          cp "$MODEL_DIR/model.int8.onnx" app-android/app/src/main/assets/sensevoice/model.int8.onnx
+          cp "$MODEL_DIR/tokens.txt" app-android/app/src/main/assets/sensevoice/tokens.txt
+          test -s app-android/app/src/main/assets/sensevoice/model.int8.onnx
+          test -s app-android/app/src/main/assets/sensevoice/tokens.txt
+          ls -lh app-android/app/libs/sherpa-onnx-1.13.4.aar app-android/app/src/main/assets/sensevoice/*
 
       - name: Make Gradle wrapper executable
         working-directory: app-android
@@ -148,7 +166,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: echo-stable-signed-debug-apk
+          name: echo-stable-sensevoice-debug-apk
           path: app-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
