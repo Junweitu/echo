@@ -32,26 +32,21 @@ jobs:
           cache: gradle
           cache-dependency-path: app-android/**/*.gradle*
 
-      - name: Restore persistent debug signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: echo-debug-keystore-v1
-
-      - name: Ensure debug signing key exists
+      - name: Prepare stable Echo signing key
+        env:
+          ECHO_KEYSTORE_B64: ${{ secrets.ECHO_KEYSTORE_B64 }}
+          ECHO_KEYSTORE_PASSWORD: ${{ secrets.ECHO_KEYSTORE_PASSWORD }}
         run: |
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkeypair \
-              -keystore ~/.android/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000
+          if [ -z "$ECHO_KEYSTORE_B64" ] || [ -z "$ECHO_KEYSTORE_PASSWORD" ]; then
+            echo "::error::Missing ECHO_KEYSTORE_B64 or ECHO_KEYSTORE_PASSWORD repository secret"
+            exit 1
           fi
+          mkdir -p "$RUNNER_TEMP/echo-signing"
+          printf '%s' "$ECHO_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/echo-signing/echo-signing.jks"
+          keytool -list \
+            -keystore "$RUNNER_TEMP/echo-signing/echo-signing.jks" \
+            -storepass "$ECHO_KEYSTORE_PASSWORD" \
+            -alias echo >/dev/null
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -97,14 +92,30 @@ jobs:
         working-directory: app-android
         run: chmod +x gradlew
 
-      - name: Build debug APK
+      - name: Build stable-signed debug APK
         working-directory: app-android
+        env:
+          ECHO_KEYSTORE_PATH: ${{ runner.temp }}/echo-signing/echo-signing.jks
+          ECHO_KEYSTORE_PASSWORD: ${{ secrets.ECHO_KEYSTORE_PASSWORD }}
         run: ./gradlew --no-daemon :app:assembleDebug --console=plain
+
+      - name: Verify stable signing certificate
+        run: |
+          APK="app-android/app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --print-certs "$APK"
+          ACTUAL=$("$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')
+          EXPECTED="00f271bc954d9e2b43eb4b46954017e43088d5ba06a91e206f33d06b0ea24a91"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::APK signing certificate mismatch"
+            echo "Expected: $EXPECTED"
+            echo "Actual:   $ACTUAL"
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: echo-samsung-asr-traditional-debug-apk
+          name: echo-stable-signed-debug-apk
           path: app-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
