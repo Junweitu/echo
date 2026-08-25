@@ -27,7 +27,7 @@ class UploadWorker @AssistedInject constructor(
         val result = processor.processPending()
         Log.i(TAG, "local ASR batch total=${result.total} completed=${result.completed} failed=${result.failed}")
         if (result.failed > 0) {
-            Log.i(TAG, "local ASR failures stay in FAILED and will be retried by the next enqueue")
+            Log.i(TAG, "local ASR failures stay in FAILED and will be retried by the next queued worker")
         }
         return Result.success()
     }
@@ -49,12 +49,18 @@ class UploadWorker @AssistedInject constructor(
 class UploadWorkScheduler @Inject constructor(
     private val workManager: WorkManager,
 ) {
+    /**
+     * Local ASR is CPU-heavy and must be serialized.  Never REPLACE an active worker:
+     * cancelling it after the DB row was marked UPLOADING leaves the UI stuck on
+     * "正在轉寫".  APPEND_OR_REPLACE keeps one ordered chain and recovers if an old
+     * chain had already been cancelled or failed.
+     */
     fun enqueue() {
-        enqueue(ExistingWorkPolicy.KEEP)
+        enqueue(ExistingWorkPolicy.APPEND_OR_REPLACE)
     }
 
     fun enqueueNow() {
-        enqueue(ExistingWorkPolicy.REPLACE)
+        enqueue(ExistingWorkPolicy.APPEND_OR_REPLACE)
     }
 
     private fun enqueue(policy: ExistingWorkPolicy) {
