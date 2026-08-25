@@ -7,6 +7,9 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+val echoKeystorePath = System.getenv("ECHO_KEYSTORE_PATH")
+val echoKeystorePassword = System.getenv("ECHO_KEYSTORE_PASSWORD")
+
 android {
     namespace = "tech.echo.app"
     compileSdk = 36
@@ -16,12 +19,26 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.4.2-samsung-chunked-asr-zhTW"
+        versionCode = 7
+        versionName = "0.4.3-stable-signing-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            if (!echoKeystorePath.isNullOrBlank() && !echoKeystorePassword.isNullOrBlank()) {
+                storeFile = file(echoKeystorePath)
+                storePassword = echoKeystorePassword
+                keyAlias = "echo"
+                keyPassword = echoKeystorePassword
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
