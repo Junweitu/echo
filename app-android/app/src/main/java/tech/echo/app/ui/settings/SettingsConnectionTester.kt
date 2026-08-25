@@ -6,7 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.echo.app.core.summary.LlmClient
 import tech.echo.app.core.text.TraditionalChinese
-import tech.echo.app.core.upload.LocalVoskAsrClient
+import tech.echo.app.core.upload.LocalSenseVoiceAsrClient
 import java.io.File
 import javax.inject.Inject
 
@@ -17,35 +17,38 @@ data class ConnectionTestResult(
 
 class SettingsConnectionTester internal constructor(
     private val sampleDir: File,
-    private val localVoskAsrClient: LocalVoskAsrClient,
+    private val localSenseVoiceAsrClient: LocalSenseVoiceAsrClient,
     private val llmClient: LlmClient,
     private val audioProvider: AsrTestAudioProvider,
 ) {
     @Inject
     constructor(
         @ApplicationContext context: Context,
-        localVoskAsrClient: LocalVoskAsrClient,
+        localSenseVoiceAsrClient: LocalSenseVoiceAsrClient,
         llmClient: LlmClient,
         audioProvider: AssetAsrTestAudioProvider,
-    ) : this(File(context.cacheDir, "connection-test"), localVoskAsrClient, llmClient, audioProvider)
+    ) : this(File(context.cacheDir, "connection-test"), localSenseVoiceAsrClient, llmClient, audioProvider)
 
     suspend fun testAsr(): ConnectionTestResult = withContext(Dispatchers.IO) {
         runCatching {
             val file = audioProvider.createSampleFile(sampleDir)
             try {
-                localVoskAsrClient.transcribe(file)
+                localSenseVoiceAsrClient.transcribe(file)
             } finally {
                 file.delete()
             }
         }.fold(
             onSuccess = { utterances ->
                 if (utterances.isNotEmpty()) {
-                    ConnectionTestResult(true, "Vosk 本機中文辨識正常：${TraditionalChinese.convert(utterances.first().text.take(24))}")
+                    ConnectionTestResult(
+                        true,
+                        "SenseVoice 本機中文辨識正常：${TraditionalChinese.convert(utterances.first().text.take(40))}",
+                    )
                 } else {
-                    ConnectionTestResult(true, "Vosk 中文模型已載入（測試音訊未辨識到文字）")
+                    ConnectionTestResult(true, "SenseVoice 模型已載入（測試音訊未辨識到文字）")
                 }
             },
-            onFailure = { ConnectionTestResult(false, it.readableMessage("Vosk 本機語音辨識失敗")) },
+            onFailure = { ConnectionTestResult(false, it.readableMessage("SenseVoice 本機語音辨識失敗")) },
         )
     }
 
