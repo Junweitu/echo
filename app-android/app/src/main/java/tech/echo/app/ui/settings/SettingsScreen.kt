@@ -47,7 +47,6 @@ fun SettingsScreen(
     val form by viewModel.form.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
     val asrTest by viewModel.asrTest.collectAsStateWithLifecycle()
-    val systemSpeechTest by viewModel.systemSpeechTest.collectAsStateWithLifecycle()
     val llmTest by viewModel.llmTest.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -70,28 +69,13 @@ fun SettingsScreen(
                 .padding(horizontal = EchoSpacing.pageHorizontal),
             verticalArrangement = Arrangement.spacedBy(EchoSpacing.elementGap),
         ) {
-            SectionTitle("正式語音辨識")
+            SectionTitle("本機語音辨識")
             Text(
-                "Echo 現在優先使用 Samsung / Bixby 系統語音辨識處理 WAV 片段；若 Samsung 服務不可用、無網路或辨識失敗，會自動改用 Vosk 本機中文模型，不需要火山引擎 API Key。",
+                "Echo 現在使用 SenseVoice INT8 中文模型在手機本機完成語音轉文字。錄音不會送到語音辨識雲端、不需要火山引擎或其他 ASR API Key，也不按錄音時數收費。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            SectionTitle("Samsung / 系統語音辨識診斷")
-            Text(
-                "用於檢查系統、Google 與 Samsung/Bixby RecognitionService 是否能直接接收 Echo 的 WAV。診斷本身不會改動既有錄音或逐字稿。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ConnectionTestButton("測試 Samsung / 系統 ASR", systemSpeechTest, viewModel::testSystemSpeech)
-
-            SectionTitle("Vosk 本機語音辨識（自動備援）")
-            Text(
-                "Vosk 小型中文模型完全在手機上轉寫，不需要網路，也不按錄音時數收費。這個按鈕只測試 Vosk 備援引擎。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ConnectionTestButton("測試 Vosk 本機中文語音辨識", asrTest, viewModel::testAsr)
+            ConnectionTestButton("測試 SenseVoice 本機中文辨識", asrTest, viewModel::testAsr)
 
             SectionTitle("DeepSeek · 每日整理")
             ConfigField("Base URL", form.deepSeekBaseUrl, { viewModel.update { cfg -> cfg.copy(deepSeekBaseUrl = it) } })
@@ -107,7 +91,7 @@ fun SettingsScreen(
             }
 
             Text(
-                "注意：這台手機回報 Android『裝置端語音辨識』不可用，因此 Samsung/Bixby 路徑不保證完全離線；若 Samsung 失敗，Vosk 備援路徑則完全離線。每日整理仍會把轉寫文字傳送給你設定的 DeepSeek 服務。",
+                "隱私說明：SenseVoice 語音辨識完全在手機本機執行。只有在你啟用每日整理時，Echo 才會把已經轉成文字的內容送到你設定的 DeepSeek 服務進行整理。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = EchoSpacing.sectionGap),
