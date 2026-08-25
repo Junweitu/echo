@@ -81,6 +81,40 @@ jobs:
           print(f'Traditionalized {changed} source files')
           PY
 
+      - name: Do not claim voice-call audio focus for background recording
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('app-android/app/src/main/java/tech/echo/app/core/audio/RecordingService.kt')
+          text = p.read_text(encoding='utf-8')
+          pattern = re.compile(
+              r'    private fun requestAudioFocus\(\): Boolean \{.*?'
+              r'    private fun abandonAudioFocus\(\) \{.*?\n    \}\n',
+              re.S,
+          )
+          replacement = '''    private fun requestAudioFocus(): Boolean {
+              // Echo only captures microphone audio; it must not claim VOICE_COMMUNICATION
+              // playback focus. Android itself arbitrates microphone input when a real call,
+              // VoIP app, or SpeechRecognizer needs access.
+              Log.i(TAG, "audio focus intentionally not requested for microphone-only capture")
+              focusRequest = null
+              return true
+          }
+
+          private fun abandonAudioFocus() {
+              // No-op: Echo no longer requests Audio Focus for microphone-only capture.
+              focusRequest = null
+          }
+'''
+          updated, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Unable to patch RecordingService audio-focus methods')
+          p.write_text(updated, encoding='utf-8')
+          print('Patched RecordingService: no VOICE_COMMUNICATION Audio Focus')
+          PY
+
       - name: Bundle offline Chinese Vosk model
         run: |
           mkdir -p app-android/app/src/main/assets
