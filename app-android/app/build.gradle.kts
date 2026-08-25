@@ -96,11 +96,8 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Silero VAD（ONNX Runtime 端上推理）
-    implementation(libs.onnxruntime.android)
-
-    // 本機離線 ASR：sherpa-onnx + SenseVoice。
-    // AAR 由 GitHub Actions 從 sherpa-onnx 官方 release 下載到 app/libs。
+    // 本機離線 ASR 與 VAD：sherpa-onnx + SenseVoice + Silero VAD。
+    // sherpa-onnx AAR 已內含其所需的 ONNX Runtime native libraries，不能再額外加入 onnxruntime-android。
     implementation(files("libs/sherpa-onnx-1.13.4.aar"))
 
     // 網路只用於 DeepSeek LLM；語音辨識本身完全離線。
