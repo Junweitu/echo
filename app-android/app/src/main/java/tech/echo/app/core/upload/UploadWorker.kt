@@ -29,8 +29,6 @@ class UploadWorker @AssistedInject constructor(
         var failed = 0
         var rounds = 0
 
-        // One worker owns the local-ASR queue and drains it in batches. This avoids
-        // building an ever-growing WorkManager prerequisite chain for all-day recording.
         while (rounds < MAX_DRAIN_ROUNDS) {
             val result = processor.processPending()
             total += result.total
@@ -39,7 +37,6 @@ class UploadWorker @AssistedInject constructor(
             rounds += 1
 
             if (result.total == 0) break
-            // When only failed rows remain, stop instead of retrying the same bad row forever.
             if (result.completed == 0) break
         }
 
@@ -52,10 +49,6 @@ class UploadWorker @AssistedInject constructor(
 
     companion object {
         private const val TAG = "EchoUploadWorker"
-
-        // v2 deliberately uses a new unique-work name. Older Echo versions may have left
-        // a long APPEND prerequisite chain under LEGACY_UNIQUE_NAME, which can starve new
-        // recordings in the RECORDED/等待語音轉寫 state.
         private const val UNIQUE_NAME = "local-asr-pending-segments-v2"
         private const val LEGACY_UNIQUE_NAME = "upload-pending-segments"
         private const val MAX_DRAIN_ROUNDS = 50
@@ -74,14 +67,6 @@ class UploadWorker @AssistedInject constructor(
 class UploadWorkScheduler @Inject constructor(
     private val workManager: WorkManager,
 ) {
-    /**
-     * Keep exactly one active local-ASR worker. New speech never appends another
-     * prerequisite; the active worker drains the Room queue itself.
-     *
-     * Cancel the legacy chain on every trigger. cancelUniqueWork is idempotent, and using
-     * a fresh v2 unique name lets this version recover immediately from stale 0.5.x/0.6.0
-     * WorkManager state after an in-place APK update.
-     */
     fun enqueue() {
         workManager.cancelUniqueWork(UploadWorker.legacyUniqueName())
         workManager.enqueueUniqueWork(
@@ -92,4 +77,13 @@ class UploadWorkScheduler @Inject constructor(
     }
 
     fun enqueueNow() = enqueue()
+
+    /**
+     * 0.6.2 起即時 ASR 改由 RecordingService 直接執行。
+     * 更新後先取消舊版殘留的 unique work，避免舊 Worker 與直接 ASR 佇列同時處理同一筆資料。
+     */
+    fun cancelScheduledAsrWork() {
+        workManager.cancelUniqueWork(UploadWorker.legacyUniqueName())
+        workManager.cancelUniqueWork(UploadWorker.uniqueName())
+    }
 }
