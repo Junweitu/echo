@@ -27,13 +27,21 @@ class DeepSeekLlmClient @Inject constructor(
         if (!config.isLlmConfigured) {
             throw LlmConfigurationException("DeepSeek 配置不完整")
         }
-        val url = "${config.deepSeekBaseUrl.trimEnd('/')}/chat/completions"
+
+        // 最後一道防線：Authorization header 不容許 CR/LF 或其他控制字元。
+        // 即使設定資料來自舊版，也在真正送出 request 前再次清理。
+        val apiKey = sanitizeApiKey(config.deepSeekApiKey)
+        if (apiKey.isBlank()) throw LlmConfigurationException("DeepSeek API Key 為空")
+
+        val baseUrl = config.deepSeekBaseUrl.replace("\r", "").replace("\n", "").trim().trimEnd('/')
+        val model = config.deepSeekModel.replace("\r", "").replace("\n", "").trim()
+        val url = "$baseUrl/chat/completions"
         val requestBody = DeepSeekChatRequest(
-            model = config.deepSeekModel,
+            model = model,
             messages = listOf(
                 DeepSeekMessage(
                     role = "system",
-                    content = "你只输出合法 JSON。用户 prompt 会包含 json schema。",
+                    content = "你只輸出合法 JSON。使用者 prompt 會包含 json schema。",
                 ),
                 DeepSeekMessage(role = "user", content = prompt),
             ),
@@ -41,7 +49,7 @@ class DeepSeekLlmClient @Inject constructor(
         )
         val request = Request.Builder()
             .url(url)
-            .addHeader("Authorization", "Bearer ${config.deepSeekApiKey}")
+            .addHeader("Authorization", "Bearer $apiKey")
             .addHeader("Content-Type", "application/json")
             .post(json.encodeToString(requestBody).toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -49,11 +57,19 @@ class DeepSeekLlmClient @Inject constructor(
         httpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw IOException("DeepSeek 请求失败：HTTP ${response.code} $body")
+                throw IOException("DeepSeek 請求失敗：HTTP ${response.code} $body")
             }
             val parsed = json.decodeFromString<DeepSeekChatResponse>(body)
             parsed.choices.firstOrNull()?.message?.content?.takeIf { it.isNotBlank() }
-                ?: throw IOException("DeepSeek 返回内容为空")
+                ?: throw IOException("DeepSeek 返回內容為空")
+        }
+    }
+
+    private fun sanitizeApiKey(value: String): String = buildString(value.length) {
+        value.forEach { ch ->
+            if (!ch.isWhitespace() && !Character.isISOControl(ch) && ch != '\u200B' && ch != '\uFEFF') {
+                append(ch)
+            }
         }
     }
 
