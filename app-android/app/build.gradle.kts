@@ -19,8 +19,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.6.0-zipformer-deepseek-fix-zhTW"
+        versionCode = 13
+        versionName = "0.6.1-zipformer-queue-recovery-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
