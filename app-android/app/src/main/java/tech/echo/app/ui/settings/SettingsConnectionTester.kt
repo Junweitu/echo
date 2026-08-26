@@ -6,7 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.echo.app.core.summary.LlmClient
 import tech.echo.app.core.text.TraditionalChinese
-import tech.echo.app.core.upload.LocalSenseVoiceAsrClient
+import tech.echo.app.core.upload.LocalZipformerAsrClient
 import java.io.File
 import javax.inject.Inject
 
@@ -17,23 +17,23 @@ data class ConnectionTestResult(
 
 class SettingsConnectionTester internal constructor(
     private val sampleDir: File,
-    private val localSenseVoiceAsrClient: LocalSenseVoiceAsrClient,
+    private val localZipformerAsrClient: LocalZipformerAsrClient,
     private val llmClient: LlmClient,
     private val audioProvider: AsrTestAudioProvider,
 ) {
     @Inject
     constructor(
         @ApplicationContext context: Context,
-        localSenseVoiceAsrClient: LocalSenseVoiceAsrClient,
+        localZipformerAsrClient: LocalZipformerAsrClient,
         llmClient: LlmClient,
         audioProvider: AssetAsrTestAudioProvider,
-    ) : this(File(context.cacheDir, "connection-test"), localSenseVoiceAsrClient, llmClient, audioProvider)
+    ) : this(File(context.cacheDir, "connection-test"), localZipformerAsrClient, llmClient, audioProvider)
 
     suspend fun testAsr(): ConnectionTestResult = withContext(Dispatchers.IO) {
         runCatching {
             val file = audioProvider.createSampleFile(sampleDir)
             try {
-                localSenseVoiceAsrClient.transcribe(file)
+                localZipformerAsrClient.transcribe(file)
             } finally {
                 file.delete()
             }
@@ -42,13 +42,13 @@ class SettingsConnectionTester internal constructor(
                 if (utterances.isNotEmpty()) {
                     ConnectionTestResult(
                         true,
-                        "SenseVoice 本機中文辨識正常：${TraditionalChinese.convert(utterances.first().text.take(40))}",
+                        "Zipformer CTC 本機中文辨識正常：${TraditionalChinese.convert(utterances.first().text.take(40))}",
                     )
                 } else {
-                    ConnectionTestResult(true, "SenseVoice 模型已載入（測試音訊未辨識到文字）")
+                    ConnectionTestResult(true, "Zipformer CTC 模型已載入（測試音訊未辨識到文字）")
                 }
             },
-            onFailure = { ConnectionTestResult(false, it.readableMessage("SenseVoice 本機語音辨識失敗")) },
+            onFailure = { ConnectionTestResult(false, it.readableMessage("Zipformer CTC 本機語音辨識失敗")) },
         )
     }
 
