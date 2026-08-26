@@ -4,21 +4,18 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import tech.echo.app.core.data.db.DailySummaryEntity
-import tech.echo.app.core.data.db.SummaryStatusDb
 import tech.echo.app.core.data.repository.DailySummaryRepository
 import tech.echo.app.core.data.repository.SegmentRepository
 import tech.echo.app.core.model.DailySummary
 import tech.echo.app.core.model.SummaryStatus
 import tech.echo.app.core.model.TranscriptSegment
-import tech.echo.app.core.summary.SummaryWorkScheduler
+import tech.echo.app.core.summary.SummaryGenerator
 import javax.inject.Inject
 
 data class DetailUiState(
@@ -32,7 +29,7 @@ class DetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val dailySummaryRepository: DailySummaryRepository,
     private val segmentRepository: SegmentRepository,
-    private val summaryWorkScheduler: SummaryWorkScheduler,
+    private val summaryGenerator: SummaryGenerator,
 ) : ViewModel() {
     private val date: String = checkNotNull(savedStateHandle["date"]) {
         "detail route requires date argument"
@@ -71,14 +68,20 @@ class DetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 手動整理直接執行 SummaryGenerator，不再把 UI 狀態先寫成 GENERATING
+     * 再等待 WorkManager。Generator 自己負責 PENDING / GENERATING / DONE / FAILED，
+     * 因此即使目前還沒有完成的逐字稿，畫面也會正確回到可重試狀態。
+     */
     fun regenerateSummary() {
+        if (localRegenerating.value) return
         viewModelScope.launch {
             localRegenerating.value = true
-            val existing = dailySummaryRepository.getByDate(date) ?: DailySummaryEntity(date = date)
-            dailySummaryRepository.upsert(existing.copy(status = SummaryStatusDb.GENERATING.name))
-            summaryWorkScheduler.enqueue(date)
-            delay(1_500)
-            localRegenerating.value = false
+            try {
+                summaryGenerator.generate(date)
+            } finally {
+                localRegenerating.value = false
+            }
         }
     }
 }
