@@ -24,17 +24,41 @@ class UploadWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        val result = processor.processPending()
-        Log.i(TAG, "local ASR batch total=${result.total} completed=${result.completed} failed=${result.failed}")
-        if (result.failed > 0) {
-            Log.i(TAG, "local ASR failures stay in FAILED and will be retried by the next queued worker")
+        var total = 0
+        var completed = 0
+        var failed = 0
+        var rounds = 0
+
+        // One worker owns the local-ASR queue and drains it in batches. This avoids
+        // building an ever-growing WorkManager prerequisite chain for all-day recording.
+        while (rounds < MAX_DRAIN_ROUNDS) {
+            val result = processor.processPending()
+            total += result.total
+            completed += result.completed
+            failed += result.failed
+            rounds += 1
+
+            if (result.total == 0) break
+            // When only failed rows remain, stop instead of retrying the same bad row forever.
+            if (result.completed == 0) break
         }
+
+        Log.i(
+            TAG,
+            "local ASR drain rounds=$rounds total=$total completed=$completed failed=$failed",
+        )
         return Result.success()
     }
 
     companion object {
         private const val TAG = "EchoUploadWorker"
-        private const val UNIQUE_NAME = "upload-pending-segments"
+
+        // v2 deliberately uses a new unique-work name. Older Echo versions may have left
+        // a long APPEND prerequisite chain under LEGACY_UNIQUE_NAME, which can starve new
+        // recordings in the RECORDED/等待語音轉寫 state.
+        private const val UNIQUE_NAME = "local-asr-pending-segments-v2"
+        private const val LEGACY_UNIQUE_NAME = "upload-pending-segments"
+        private const val MAX_DRAIN_ROUNDS = 50
 
         fun request(): OneTimeWorkRequest =
             OneTimeWorkRequestBuilder<UploadWorker>()
@@ -42,6 +66,7 @@ class UploadWorker @AssistedInject constructor(
                 .build()
 
         fun uniqueName(): String = UNIQUE_NAME
+        fun legacyUniqueName(): String = LEGACY_UNIQUE_NAME
     }
 }
 
@@ -50,24 +75,21 @@ class UploadWorkScheduler @Inject constructor(
     private val workManager: WorkManager,
 ) {
     /**
-     * Local ASR is CPU-heavy and must be serialized.  Never REPLACE an active worker:
-     * cancelling it after the DB row was marked UPLOADING leaves the UI stuck on
-     * "正在轉寫".  APPEND_OR_REPLACE keeps one ordered chain and recovers if an old
-     * chain had already been cancelled or failed.
+     * Keep exactly one active local-ASR worker. New speech never appends another
+     * prerequisite; the active worker drains the Room queue itself.
+     *
+     * Cancel the legacy chain on every trigger. cancelUniqueWork is idempotent, and using
+     * a fresh v2 unique name lets this version recover immediately from stale 0.5.x/0.6.0
+     * WorkManager state after an in-place APK update.
      */
     fun enqueue() {
-        enqueue(ExistingWorkPolicy.APPEND_OR_REPLACE)
-    }
-
-    fun enqueueNow() {
-        enqueue(ExistingWorkPolicy.APPEND_OR_REPLACE)
-    }
-
-    private fun enqueue(policy: ExistingWorkPolicy) {
+        workManager.cancelUniqueWork(UploadWorker.legacyUniqueName())
         workManager.enqueueUniqueWork(
             UploadWorker.uniqueName(),
-            policy,
+            ExistingWorkPolicy.KEEP,
             UploadWorker.request(),
         )
     }
+
+    fun enqueueNow() = enqueue()
 }
