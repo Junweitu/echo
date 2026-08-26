@@ -104,11 +104,12 @@ class RecordingService : Service() {
                 var rounds = 0
                 while (rounds < MAX_ASR_DRAIN_ROUNDS) {
                     rounds += 1
-                    val result = runCatching { uploadProcessor.processPending() }
-                        .getOrElse { error ->
-                            Log.w(TAG, "direct local ASR queue failed", error)
-                            break
-                        }
+                    val result = try {
+                        uploadProcessor.processPending()
+                    } catch (error: Throwable) {
+                        Log.w(TAG, "direct local ASR queue failed", error)
+                        break
+                    }
 
                     Log.i(
                         TAG,
