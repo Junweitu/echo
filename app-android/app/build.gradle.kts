@@ -19,8 +19,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "0.6.3-zipformer-mutex-drain-zhTW"
+        versionCode = 16
+        versionName = "0.6.4-zipformer-mutex-drain-direct-summary-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
