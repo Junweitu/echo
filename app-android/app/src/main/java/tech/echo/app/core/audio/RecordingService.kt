@@ -32,6 +32,7 @@ import tech.echo.app.R
 import tech.echo.app.core.data.repository.SegmentRepository
 import tech.echo.app.core.model.RecordingStatus
 import tech.echo.app.core.upload.UploadProcessor
+import tech.echo.app.core.upload.UploadWorkScheduler
 import java.io.File
 import javax.inject.Inject
 
@@ -51,6 +52,7 @@ class RecordingService : Service() {
     @Inject lateinit var repository: SegmentRepository
     @Inject lateinit var stateHolder: RecordingStateHolder
     @Inject lateinit var uploadProcessor: UploadProcessor
+    @Inject lateinit var uploadWorkScheduler: UploadWorkScheduler
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var captureJob: Job? = null
@@ -70,6 +72,9 @@ class RecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        // 0.6.0 / 0.6.1 可能還有舊 WorkManager ASR 工作留在系統裡。
+        // 0.6.2 的即時 ASR 已改成本服務直接執行，先取消舊工作避免競爭。
+        uploadWorkScheduler.cancelScheduledAsrWork()
         startLocalAsrQueue()
         // App 更新、程序重啟或服務被系統重建時，主動撿回舊的
         // RECORDED / UPLOADING / TRANSCRIBING / FAILED 資料。
