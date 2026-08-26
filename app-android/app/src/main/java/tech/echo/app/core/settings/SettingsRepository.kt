@@ -12,10 +12,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 配置仓库：用 [EncryptedSharedPreferences]（AES256-GCM）加密存敏感配置。
+ * 配置倉庫：用 [EncryptedSharedPreferences]（AES256-GCM）加密存敏感配置。
  *
- * key 不进明文 prefs、不进 git、不进 BuildConfig（见 journal 2026-05-29 决策）。
- * [config] 暴露为 Flow，写入后 ASR/LLM 客户端实时拿到最新配置。
+ * key 不進明文 prefs、不進 git、不進 BuildConfig。
+ * [config] 暴露為 Flow，寫入後 ASR/LLM 客戶端即時拿到最新配置。
  */
 @Singleton
 class SettingsRepository @Inject constructor(
@@ -34,10 +34,8 @@ class SettingsRepository @Inject constructor(
         )
     }
 
-    /** 当前配置（一次性读，客户端构造请求前取）。 */
     override fun current(): AppConfig = readConfig()
 
-    /** 配置变更流：写入后下游（ASR/LLM/设置页）实时刷新。 */
     override val config: Flow<AppConfig> = callbackFlow {
         trySend(readConfig())
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
@@ -47,15 +45,20 @@ class SettingsRepository @Inject constructor(
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
-    /** 保存配置（设置页点保存调用）。 */
+    /**
+     * 儲存前先正規化 DeepSeek 欄位。
+     *
+     * Android 剪貼簿有時會把 API Key 尾端的 CR/LF、BOM 或 zero-width space 一起貼進來；
+     * 這些字元肉眼看不到，但 OkHttp 會拒絕把它們放進 Authorization header。
+     */
     fun save(config: AppConfig) {
         prefs.edit()
             .putString(KEY_VOLC_APP_ID, config.volcAppId)
             .putString(KEY_VOLC_ACCESS_KEY, config.volcAccessKey)
             .putString(KEY_VOLC_RESOURCE_ID, config.volcResourceId)
-            .putString(KEY_DS_BASE_URL, config.deepSeekBaseUrl)
-            .putString(KEY_DS_API_KEY, config.deepSeekApiKey)
-            .putString(KEY_DS_MODEL, config.deepSeekModel)
+            .putString(KEY_DS_BASE_URL, sanitizePlainField(config.deepSeekBaseUrl))
+            .putString(KEY_DS_API_KEY, sanitizeApiKey(config.deepSeekApiKey))
+            .putString(KEY_DS_MODEL, sanitizePlainField(config.deepSeekModel))
             .apply()
     }
 
@@ -64,11 +67,26 @@ class SettingsRepository @Inject constructor(
         volcAccessKey = prefs.getString(KEY_VOLC_ACCESS_KEY, "").orEmpty(),
         volcResourceId = prefs.getString(KEY_VOLC_RESOURCE_ID, AppConfig.DEFAULT_VOLC_RESOURCE_ID)
             .orEmpty(),
-        deepSeekBaseUrl = prefs.getString(KEY_DS_BASE_URL, AppConfig.DEFAULT_DEEPSEEK_BASE_URL)
-            .orEmpty(),
-        deepSeekApiKey = prefs.getString(KEY_DS_API_KEY, "").orEmpty(),
-        deepSeekModel = prefs.getString(KEY_DS_MODEL, AppConfig.DEFAULT_DEEPSEEK_MODEL).orEmpty(),
+        deepSeekBaseUrl = sanitizePlainField(
+            prefs.getString(KEY_DS_BASE_URL, AppConfig.DEFAULT_DEEPSEEK_BASE_URL).orEmpty()
+        ).ifBlank { AppConfig.DEFAULT_DEEPSEEK_BASE_URL },
+        // 讀取時也清一次，讓舊版本已經儲存進去的 CR/LF 不必手動重輸 Key 就能修復。
+        deepSeekApiKey = sanitizeApiKey(prefs.getString(KEY_DS_API_KEY, "").orEmpty()),
+        deepSeekModel = sanitizePlainField(
+            prefs.getString(KEY_DS_MODEL, AppConfig.DEFAULT_DEEPSEEK_MODEL).orEmpty()
+        ).ifBlank { AppConfig.DEFAULT_DEEPSEEK_MODEL },
     )
+
+    private fun sanitizePlainField(value: String): String =
+        value.replace("\r", "").replace("\n", "").trim()
+
+    private fun sanitizeApiKey(value: String): String = buildString(value.length) {
+        value.forEach { ch ->
+            if (!ch.isWhitespace() && !Character.isISOControl(ch) && ch != '\u200B' && ch != '\uFEFF') {
+                append(ch)
+            }
+        }
+    }
 
     private companion object {
         const val PREFS_NAME = "echo_secure_settings"
