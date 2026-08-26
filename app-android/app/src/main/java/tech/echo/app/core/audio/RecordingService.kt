@@ -27,6 +27,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import tech.echo.app.MainActivity
 import tech.echo.app.R
 import tech.echo.app.core.data.repository.SegmentRepository
@@ -39,12 +41,12 @@ import javax.inject.Inject
 /**
  * 錄音前台服務。
  *
- * 錄音與本機 ASR 分成兩條串行 coroutine：
- * - captureJob 持續讀取麥克風、VAD 切段並寫入 Room。
- * - asrQueueJob 由 Channel 喚醒，直接呼叫 UploadProcessor 清空待轉寫資料。
+ * captureJob 持續讀取麥克風、VAD 切段並寫入 Room。
+ * 每當片段入庫後，直接在 serviceScope 啟動本機 ASR drain；Mutex 保證同一時間
+ * 只有一條 Zipformer 處理管線，不阻塞錄音 coroutine，也不依賴 WorkManager。
  *
- * 即時語音轉寫不再依賴 WorkManager，避免全天使用時因舊 prerequisite chain
- * 或系統排程延遲，讓錄音長時間停在「等待語音轉寫」。
+ * 舊 Channel queue 暫時保留作為相容性程式碼，但 0.6.3 的實際喚醒路徑
+ * 由 wakeLocalAsr() 直接進入 UploadProcessor。
  */
 @AndroidEntryPoint
 class RecordingService : Service() {
@@ -57,10 +59,10 @@ class RecordingService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var captureJob: Job? = null
     private var asrQueueJob: Job? = null
+    private val asrDrainMutex = Mutex()
 
     /**
-     * CONFLATED 只需要記住「還有工作要做」。真正待處理項目以 Room 為準，
-     * 因此短時間連續產生多段錄音也不需要在記憶體累積很多 signal。
+     * 舊版 Channel queue 暫留，避免一次同時改動過多；0.6.3 不再靠它觸發 ASR。
      */
     private val asrWakeups = Channel<Unit>(Channel.CONFLATED)
 
@@ -72,8 +74,7 @@ class RecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        // 0.6.0 / 0.6.1 可能還有舊 WorkManager ASR 工作留在系統裡。
-        // 0.6.2 的即時 ASR 已改成本服務直接執行，先取消舊工作避免競爭。
+        // 舊 WorkManager ASR 工作先取消，避免和直接本機 ASR 競爭。
         uploadWorkScheduler.cancelScheduledAsrWork()
         startLocalAsrQueue()
         // App 更新、程序重啟或服務被系統重建時，主動撿回舊的
@@ -96,6 +97,10 @@ class RecordingService : Service() {
         return START_STICKY
     }
 
+    /**
+     * 舊版 Channel consumer 暫時保留但不再由 wakeLocalAsr() 投遞 signal。
+     * 這樣可以把 0.6.3 的變更聚焦在單一、可驗證的直接 drain 路徑。
+     */
     private fun startLocalAsrQueue() {
         if (asrQueueJob?.isActive == true) return
 
@@ -107,27 +112,56 @@ class RecordingService : Service() {
                     val result = try {
                         uploadProcessor.processPending()
                     } catch (error: Throwable) {
-                        Log.w(TAG, "direct local ASR queue failed", error)
+                        Log.w(TAG, "legacy local ASR queue failed", error)
                         break
                     }
 
                     Log.i(
                         TAG,
-                        "direct local ASR round=$rounds total=${result.total} " +
+                        "legacy local ASR round=$rounds total=${result.total} " +
                             "completed=${result.completed} failed=${result.failed}",
                     )
 
                     if (result.total == 0) break
-                    // 避免同一批永久失敗的資料形成 busy loop。新的錄音進來時會再喚醒。
                     if (result.completed == 0) break
                 }
             }
         }
     }
 
+    /**
+     * 直接啟動 ASR drain，不再只丟一個 Channel signal。
+     *
+     * 每次錄音片段入庫都會 launch 一個很輕量的工作；Mutex 讓真正的
+     * UploadProcessor 串行執行。若前一輪已順手清空新片段，後面的工作只會
+     * 查到 total=0 後立即結束，因此不會重複轉寫同一段。
+     */
     private fun wakeLocalAsr(reason: String) {
-        val result = asrWakeups.trySend(Unit)
-        Log.i(TAG, "wakeLocalAsr reason=$reason success=${result.isSuccess}")
+        Log.i(TAG, "request direct local ASR drain reason=$reason")
+        serviceScope.launch {
+            asrDrainMutex.withLock {
+                var rounds = 0
+                while (rounds < MAX_ASR_DRAIN_ROUNDS) {
+                    rounds += 1
+                    val result = try {
+                        uploadProcessor.processPending()
+                    } catch (error: Throwable) {
+                        Log.w(TAG, "direct local ASR drain failed reason=$reason", error)
+                        break
+                    }
+
+                    Log.i(
+                        TAG,
+                        "direct local ASR drain reason=$reason round=$rounds " +
+                            "total=${result.total} completed=${result.completed} failed=${result.failed}",
+                    )
+
+                    if (result.total == 0) break
+                    // 若這一輪完全沒有成功項目，避免永久失敗資料形成 busy loop。
+                    if (result.completed == 0) break
+                }
+            }
+        }
     }
 
     /** 啟動前台 + 麥克風採集循環。 */
@@ -162,7 +196,7 @@ class RecordingService : Service() {
             vad = detector,
             onSegmentRecorded = { segment ->
                 repository.insertSegment(segment)
-                // 直接喚醒本服務內的 Zipformer 佇列，不等待 WorkManager。
+                // 片段一入庫就直接啟動 Zipformer drain，不等待 WorkManager/Channel。
                 wakeLocalAsr("segment_recorded:${segment.id}")
             },
             onStatus = { status ->
