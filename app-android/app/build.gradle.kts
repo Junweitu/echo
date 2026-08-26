@@ -19,8 +19,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.6.1-zipformer-queue-recovery-zhTW"
+        versionCode = 14
+        versionName = "0.6.2-zipformer-direct-asr-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -61,7 +61,6 @@ android {
         compose = true
     }
 
-    // Zipformer CTC ONNX 模型很大，保持原始資產格式，讓 sherpa-onnx 可由 AssetManager 穩定讀取。
     androidResources {
         noCompress += listOf("onnx")
     }
@@ -83,21 +82,17 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     implementation(libs.androidx.navigation.compose)
-
     implementation(libs.kotlinx.coroutines.android)
 
-    // Room（本地片段儲存）
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Hilt（依賴注入）
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
     // 本機離線 ASR 與 VAD：sherpa-onnx + Zipformer CTC 中文模型 + Silero VAD。
-    // sherpa-onnx AAR 已內含其所需的 ONNX Runtime native libraries，不能再額外加入 onnxruntime-android。
     implementation(files("libs/sherpa-onnx-1.13.4.aar"))
 
     // 網路只用於 DeepSeek LLM；語音辨識本身完全離線。
@@ -105,11 +100,10 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
 
-    // 配置加密儲存
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
 
-    // WorkManager（語音轉寫 / 每日整理排程）
+    // WorkManager 保留給非即時背景工作／補漏；即時 ASR 已由 RecordingService 直接執行。
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
     ksp(libs.hilt.compiler)
