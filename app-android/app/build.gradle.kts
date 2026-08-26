@@ -19,8 +19,8 @@ android {
         applicationId = "tech.echo.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.5.2-sensevoice-streaming-vad-fix-zhTW"
+        versionCode = 12
+        versionName = "0.6.0-zipformer-deepseek-fix-zhTW"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -61,7 +61,7 @@ android {
         compose = true
     }
 
-    // SenseVoice ONNX 模型很大，保持原始資產格式，讓 sherpa-onnx 可由 AssetManager 穩定讀取。
+    // Zipformer CTC ONNX 模型很大，保持原始資產格式，讓 sherpa-onnx 可由 AssetManager 穩定讀取。
     androidResources {
         noCompress += listOf("onnx")
     }
@@ -96,7 +96,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // 本機離線 ASR 與 VAD：sherpa-onnx + SenseVoice + Silero VAD。
+    // 本機離線 ASR 與 VAD：sherpa-onnx + Zipformer CTC 中文模型 + Silero VAD。
     // sherpa-onnx AAR 已內含其所需的 ONNX Runtime native libraries，不能再額外加入 onnxruntime-android。
     implementation(files("libs/sherpa-onnx-1.13.4.aar"))
 
@@ -112,7 +112,7 @@ dependencies {
     // WorkManager（語音轉寫 / 每日整理排程）
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
-    ksp(libs.androidx.hilt.compiler)
+    ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
