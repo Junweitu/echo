@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 import tech.echo.app.core.data.repository.DailySummaryRepository
 import tech.echo.app.core.data.repository.SegmentRepository
 import tech.echo.app.core.model.DailySummary
-import tech.echo.app.core.model.SummaryStatus
 import tech.echo.app.core.model.TranscriptSegment
 import tech.echo.app.core.summary.SummaryGenerator
 import javax.inject.Inject
@@ -45,7 +44,9 @@ class DetailViewModel @Inject constructor(
         DetailUiState(
             summary = uiSummary,
             segments = DetailMappers.toTranscriptSegments(segments),
-            isRegeneratingSummary = localLoading || uiSummary.summaryStatus == SummaryStatus.GENERATING,
+            // 只以這一次直接整理工作是否仍在執行來鎖按鈕。
+            // 舊版遺留的 GENERATING 資料不可永久鎖住「重新整理」。
+            isRegeneratingSummary = localLoading,
         )
     }.stateIn(
         scope = viewModelScope,
