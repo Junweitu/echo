@@ -71,11 +71,11 @@ fun SettingsScreen(
         ) {
             SectionTitle("本機語音辨識")
             Text(
-                "Echo 現在使用 SenseVoice INT8 中文模型在手機本機完成語音轉文字。錄音不會送到語音辨識雲端、不需要火山引擎或其他 ASR API Key，也不按錄音時數收費。",
+                "Echo 現在使用 Zipformer CTC INT8 中文模型在手機本機完成語音轉文字。錄音不會送到語音辨識雲端、不需要火山引擎或其他 ASR API Key，也不按錄音時數收費。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            ConnectionTestButton("測試 SenseVoice 本機中文辨識", asrTest, viewModel::testAsr)
+            ConnectionTestButton("測試 Zipformer CTC 本機中文辨識", asrTest, viewModel::testAsr)
 
             SectionTitle("DeepSeek · 每日整理")
             ConfigField("Base URL", form.deepSeekBaseUrl, { viewModel.update { cfg -> cfg.copy(deepSeekBaseUrl = it) } })
@@ -91,7 +91,7 @@ fun SettingsScreen(
             }
 
             Text(
-                "隱私說明：SenseVoice 語音辨識完全在手機本機執行。只有在你啟用每日整理時，Echo 才會把已經轉成文字的內容送到你設定的 DeepSeek 服務進行整理。",
+                "隱私說明：Zipformer CTC 語音辨識完全在手機本機執行。只有在你啟用每日整理時，Echo 才會把已經轉成文字的內容送到你設定的 DeepSeek 服務進行整理。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = EchoSpacing.sectionGap),
